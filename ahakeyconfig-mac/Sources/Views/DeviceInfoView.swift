@@ -12,33 +12,33 @@ struct DeviceInfoView: View {
 
     var body: some View {
         Form {
-            // MARK: - 设备信息
+            // MARK: - 기기 정보
             Section {
                 HStack(spacing: 0) {
-                    infoCell("电量", value: "\(bleManager.batteryLevel)%")
+                    infoCell("배터리", value: "\(bleManager.batteryLevel)%")
                     Divider()
-                    infoCell("固件", value: "v\(bleManager.firmwareMainVersion).\(bleManager.firmwareSubVersion)")
+                    infoCell("펌웨어", value: "v\(bleManager.firmwareMainVersion).\(bleManager.firmwareSubVersion)")
                     Divider()
-                    infoCell("设备名", value: bleManager.deviceName ?? "—")
+                    infoCell("기기 이름", value: bleManager.deviceName ?? "—")
                 }
                 .frame(height: 50)
 
                 HStack(spacing: 0) {
-                    infoCell("工作模式", value: workModeName(bleManager.workMode))
+                    infoCell("작동 모드", value: workModeName(bleManager.workMode))
                     Divider()
-                    infoCell("灯光", value: lightModeName(bleManager.lightMode))
+                    infoCell("조명", value: lightModeName(bleManager.lightMode))
                     Divider()
-                    infoCell("信号", value: "\(bleManager.signalStrength) dBm")
+                    infoCell("신호", value: "\(bleManager.signalStrength) dBm")
                 }
                 .frame(height: 50)
             } header: {
-                Text("设备信息")
+                Text("기기 정보")
             }
 
-            // MARK: - 蓝牙连接（App 与 Agent 二选一）
+            // MARK: - 블루투스 연결(App과 Agent 중 하나 선택)
             Section {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("同一时间只能由本 App 或 Agent 其中之一连接键盘，请在此切换。")
+                    Text("같은 시점에는 이 App 또는 Agent 중 하나만 키보드에 연결할 수 있습니다. 여기에서 전환하세요.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                     HStack(spacing: 10) {
@@ -56,8 +56,8 @@ struct DeviceInfoView: View {
                                     Text(owner.title)
                                         .fontWeight(selected ? .semibold : .regular)
                                     Text(owner == .ahaKeyStudio
-                                         ? "改键、LCD、同步、本机灯效测试（macOS 暂不支持 USB 有线配置）"
-                                         : "Claude/Cursor/Codex/Kimi Hook、灯条状态、拨杆查询")
+                                         ? "키 변경, LCD, 동기화, 로컬 조명 효과 테스트(macOS는 아직 USB 유선 설정을 지원하지 않습니다)"
+                                         : "Claude/Cursor/Codex/Kimi Hook, 라이트 바 상태, 레버 조회")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                         .multilineTextAlignment(.leading)
@@ -73,9 +73,9 @@ struct DeviceInfoView: View {
                             .disabled(disableAgent)
                         }
                     }
-                    CompatLabeledContent("当前") {
+                    CompatLabeledContent("현재") {
                         HStack(spacing: 6) {
-                            Text(bleManager.isConnected ? "本 App 已连接蓝牙" : "本 App 未连接")
+                            Text(bleManager.isConnected ? "이 App이 블루투스에 연결됨" : "이 App이 연결되지 않음")
                             Text("·")
                                 .foregroundStyle(.tertiary)
                             Text(agentBluetoothStatusText())
@@ -84,18 +84,18 @@ struct DeviceInfoView: View {
                     }
                 }
             } header: {
-                Text("蓝牙连接")
+                Text("블루투스 연결")
             }
-            .alert("需要先安装 Agent", isPresented: $showAgentRequiredForAgentBLE) {
-                Button("好", role: .cancel) {}
+            .alert("먼저 Agent를 설치해야 합니다", isPresented: $showAgentRequiredForAgentBLE) {
+                Button("확인", role: .cancel) {}
             } message: {
-                Text("将蓝牙交给 `ahakeyconfig-agent` 前，请先在下方完成「安装并启用」，生成 LaunchAgent。")
+                Text("블루투스를 `ahakeyconfig-agent`에 넘기기 전에, 아래에서 「설치 후 활성화」를 완료해 LaunchAgent를 생성하세요.")
             }
 
-            // MARK: - 拨杆状态
+            // MARK: - 레버 상태
             Section {
                 HStack {
-                    Text("拨杆档位")
+                    Text("레버 단계")
                     Spacer()
                     HStack(spacing: 6) {
                         Circle()
@@ -106,10 +106,10 @@ struct DeviceInfoView: View {
                     }
                 }
             } header: {
-                Text("拨杆档位")
+                Text("레버 단계")
             }
 
-            // MARK: - LED 状态同步
+            // MARK: - LED 상태 동기화
             Section {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
@@ -117,7 +117,7 @@ struct DeviceInfoView: View {
                             Circle()
                                 .fill(agentManager.isRunning ? Color.green : Color.gray.opacity(0.4))
                                 .frame(width: 8, height: 8)
-                            Text("LED 跟随 IDE 状态")
+                            Text("LED가 IDE 상태를 따름")
                             Text(agentBluetoothShortLabel())
                                 .foregroundStyle(.secondary)
                         }
@@ -131,7 +131,7 @@ struct DeviceInfoView: View {
                     }
                     Spacer()
                     if agentManager.isInstalled {
-                        Button(agentManager.isRunning ? "停止" : "启动") {
+                        Button(agentManager.isRunning ? "중지" : "시작") {
                             if agentManager.isRunning {
                                 agentManager.stop()
                             } else {
@@ -142,10 +142,10 @@ struct DeviceInfoView: View {
                         .controlSize(.small)
                         .disabled(agentManager.bluetoothConnectionOwner == .ahaKeyStudio)
                         .help(agentManager.bluetoothConnectionOwner == .ahaKeyStudio
-                              ? "当前由本 App 占用蓝牙，Agent 应处于未加载。请先在「蓝牙连接」中选中 Agent 后再启停守护进程。"
-                              : "从 launchd 加载并启动/卸载停止 Agent 进程。")
+                              ? "현재 이 App이 블루투스를 사용 중이므로 Agent는 로드되지 않은 상태여야 합니다. 「블루투스 연결」에서 Agent를 선택한 뒤 데몬을 시작하거나 중지하세요."
+                              : "launchd에서 Agent 프로세스를 로드해 시작하거나, 언로드해 중지합니다.")
 
-                        Button("卸载", role: .destructive) {
+                        Button("제거", role: .destructive) {
                             agentManager.uninstall(bleManager: bleManager)
                         }
                         .buttonStyle(.bordered)
@@ -156,7 +156,7 @@ struct DeviceInfoView: View {
                                 ProgressView()
                                     .controlSize(.small)
                             }
-                            Button("安装并启用") {
+                            Button("설치 후 활성화") {
                                 agentManager.install()
                             }
                             .buttonStyle(.borderedProminent)
@@ -168,7 +168,7 @@ struct DeviceInfoView: View {
 
                 if agentManager.isInstalled {
                     HStack(spacing: 10) {
-                        Button("查看日志") {
+                        Button("로그 보기") {
                             showAgentLog.toggle()
                         }
                         .buttonStyle(.borderless)
@@ -177,85 +177,85 @@ struct DeviceInfoView: View {
                         Spacer()
 
                         if agentManager.claudeHooksInstalled {
-                            Button("移除 Claude Hooks") { agentManager.removeClaudeHooksOnly() }
+                            Button("Claude Hooks 제거") { agentManager.removeClaudeHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         } else {
-                            Button("安装 Claude Hooks") { agentManager.installClaudeHooksOnly() }
+                            Button("Claude Hooks 설치") { agentManager.installClaudeHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
                         if agentManager.cursorHooksInstalled {
-                            Button("移除 Cursor Hooks") { agentManager.removeCursorHooksOnly() }
+                            Button("Cursor Hooks 제거") { agentManager.removeCursorHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         } else {
-                            Button("安装 Cursor Hooks") { agentManager.installCursorHooksOnly() }
+                            Button("Cursor Hooks 설치") { agentManager.installCursorHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
                         if agentManager.codexHooksInstalled {
-                            Button("移除 Codex Hooks") { agentManager.removeCodexHooksOnly() }
+                            Button("Codex Hooks 제거") { agentManager.removeCodexHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         } else {
-                            Button("安装 Codex Hooks") { agentManager.installCodexHooksOnly() }
+                            Button("Codex Hooks 설치") { agentManager.installCodexHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
                         if agentManager.kimiHooksInstalled {
-                            Button("移除 Kimi Hooks") { agentManager.removeKimiHooksOnly() }
+                            Button("Kimi Hooks 제거") { agentManager.removeKimiHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         } else {
-                            Button("安装 Kimi Hooks") { agentManager.installKimiHooksOnly() }
+                            Button("Kimi Hooks 설치") { agentManager.installKimiHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
                     }
                 }
             } header: {
-                Text("LED 状态同步 · Hook 联动")
+                Text("LED 상태 동기화 · Hook 연동")
             } footer: {
                 if !agentManager.isAgentBinaryPresentInBundle {
-                    Text("发版包内未包含 ahakeyconfig-agent，无法使用守护进程。请用完整「AhaKey Studio.app」或联系开发者。")
+                    Text("배포 패키지에 ahakeyconfig-agent가 포함되어 있지 않아 데몬을 사용할 수 없습니다. 전체 「AhaKey Studio.app」을 사용하거나 개발자에게 문의하세요.")
                         .foregroundStyle(.orange)
                 } else if agentManager.isInstalled, agentManager.bluetoothConnectionOwner == .ahaKeyStudio, !agentManager.isRunning {
-                    Text("已由本 App 占用蓝牙：要让 Agent 接管，请将「蓝牙连接」选为 ahakeyconfig-agent。")
+                    Text("이 App이 블루투스를 사용 중입니다. Agent가 인계하도록 하려면 「블루투스 연결」에서 ahakeyconfig-agent를 선택하세요.")
                         .foregroundStyle(.secondary)
                 }
             }
             .sheet(isPresented: $showAgentLog) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("诊断日志")
+                        Text("진단 로그")
                             .font(.headline)
                         Spacer()
-                        Button("关闭") { showAgentLog = false }
+                        Button("닫기") { showAgentLog = false }
                     }
-                    Picker("内容", selection: $agentLogPanel) {
-                        Text("ahakeyconfig-agent 主日志").tag(0)
-                        Text("工具批准（permission-request.log）").tag(1)
+                    Picker("내용", selection: $agentLogPanel) {
+                        Text("ahakeyconfig-agent 메인 로그").tag(0)
+                        Text("도구 승인(permission-request.log)").tag(1)
                         Text("~/.cursor/hooks.json").tag(2)
                         Text("~/.cursor/cli-config.json").tag(3)
                         Text("~/.codex/config.toml").tag(4)
-                        Text("Codex Hook（codex-hook.log）").tag(5)
+                        Text("Codex Hook(codex-hook.log)").tag(5)
                         Text("~/.kimi/config.toml").tag(6)
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
                     HStack {
-                        Button("刷新本页") {
+                        Button("이 페이지 새로 고침") {
                             logPanelContentTick += 1
                             agentManager.refresh()
                         }
                         if agentLogPanel == 3 {
-                            Button("合并 CLI + IDE 终端白名单") {
+                            Button("CLI + IDE 터미널 허용 목록 병합") {
                                 let a = agentManager.mergeUserCursorCliConfigForShellAutoApprove()
                                 let b = agentManager.mergeUserCursorPermissionsJsonForAgentTUI()
                                 agentManager.agentUserAlert = a + "\n\n——\n\n" + b
                             }
-                            .help("写 cli-config（CLI）与 permissions.json 的 terminalAllowlist（Agent TUI「Not in allowlist」层）；分见官方文档。均先备份为 .ahakey.bak。")
+                            .help("cli-config(CLI)와 permissions.json의 terminalAllowlist(Agent TUI 「Not in allowlist」 계층)에 기록합니다. 각각 공식 문서를 참고하세요. 모두 먼저 .ahakey.bak으로 백업합니다.")
                         }
                         Spacer()
                     }
@@ -272,7 +272,7 @@ struct DeviceInfoView: View {
                 .frame(width: 540, height: 380)
             }
 
-            // MARK: - LED 测试
+            // MARK: - LED 테스트
             if bleManager.isConnected {
                 Section {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
@@ -289,15 +289,15 @@ struct DeviceInfoView: View {
                         }
                     }
                 } header: {
-                    Text("LED 测试")
+                    Text("LED 테스트")
                 } footer: {
-                    Text("点击按钮发送对应状态到键盘，观察 LED 变化。")
+                    Text("버튼을 누르면 해당 상태를 키보드로 보내 LED 변화를 확인할 수 있습니다.")
                 }
             }
 
-            // MARK: - BLE 连接状态
+            // MARK: - BLE 연결 상태
             Section {
-                CompatLabeledContent("连接") {
+                CompatLabeledContent("연결") {
                     HStack(spacing: 6) {
                         Circle()
                             .fill(bleManager.isConnected ? Color.green : Color.orange)
@@ -305,17 +305,17 @@ struct DeviceInfoView: View {
                         Text(bleManager.bleConnectionStatus)
                     }
                 }
-                CompatLabeledContent("设备名") {
+                CompatLabeledContent("기기 이름") {
                     if isEditingName {
                         HStack(spacing: 4) {
-                            TextField("最长 15 字节", text: $editableName)
+                            TextField("최대 15바이트", text: $editableName)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 160)
                                 .onSubmit { submitNameChange() }
-                            Button("保存") { submitNameChange() }
+                            Button("저장") { submitNameChange() }
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.small)
-                            Button("取消") { isEditingName = false }
+                            Button("취소") { isEditingName = false }
                                 .buttonStyle(.bordered)
                                 .controlSize(.small)
                         }
@@ -342,7 +342,7 @@ struct DeviceInfoView: View {
                         .textSelection(.enabled)
                 }
                 HStack {
-                    CompatLabeledContent("特征") {
+                    CompatLabeledContent("특성") {
                         HStack(spacing: 8) {
                             charBadge("DATA", ready: bleManager.dataCharReady)
                             charBadge("CMD", ready: bleManager.commandCharReady)
@@ -351,37 +351,37 @@ struct DeviceInfoView: View {
                     }
                 }
             } header: {
-                Text("BLE 连接状态")
+                Text("BLE 연결 상태")
             }
 
-            // MARK: - 操作
+            // MARK: - 동작
             Section {
                 HStack {
                     if !bleManager.isConnected {
-                        Button(bleManager.isScanning ? "扫描中…" : "连接设备") {
+                        Button(bleManager.isScanning ? "스캔 중…" : "기기 연결") {
                             bleManager.userInitiatedConnect()
                         }
                         .buttonStyle(.bordered)
                         .disabled(bleManager.isScanning || agentManager.bluetoothConnectionOwner == .agentDaemon)
                         .help(agentManager.bluetoothConnectionOwner == .agentDaemon
-                              ? "当前选择由 ahakeyconfig-agent 占用蓝牙。请先在上方「蓝牙连接」切到 AhaKey Studio，或点击顶栏「设备信息 · Agent」切换。"
-                              : "本 App 主动连接键盘。")
+                              ? "현재 ahakeyconfig-agent가 블루투스를 사용하도록 선택되어 있습니다. 위쪽 「블루투스 연결」에서 AhaKey Studio로 전환하거나, 상단 바의 「기기 정보 · Agent」를 눌러 전환하세요."
+                              : "이 App이 직접 키보드에 연결합니다.")
                     } else {
-                        Button("查询状态") {
+                        Button("상태 조회") {
                             bleManager.queryDeviceStatus()
                         }
                         .buttonStyle(.bordered)
-                        .help("发送 AA BB 00 CC DD 查询设备状态")
+                        .help("AA BB 00 CC DD를 보내 기기 상태를 조회합니다")
 
-                        Button("探测协议") {
+                        Button("프로토콜 탐지") {
                             bleManager.sendProbeCommands()
                         }
                         .buttonStyle(.bordered)
-                        .help("向设备发送探测命令，观察通信日志中的回调")
+                        .help("기기에 탐지 명령을 보내 통신 로그의 응답을 확인합니다")
 
                         Spacer()
 
-                        Button("断开", role: .destructive) {
+                        Button("연결 해제", role: .destructive) {
                             bleManager.disconnect()
                         }
                         .buttonStyle(.bordered)
@@ -389,7 +389,7 @@ struct DeviceInfoView: View {
                 }
             }
 
-            // MARK: - 通信日志
+            // MARK: - 통신 로그
             Section {
                 VStack(alignment: .leading, spacing: 0) {
                     ScrollViewReader { proxy in
@@ -423,14 +423,14 @@ struct DeviceInfoView: View {
 
                     HStack {
                         Spacer()
-                        Button("复制全部") {
+                        Button("전체 복사") {
                             let text = bleManager.commLog.map { "[\($0.formattedTime)] \($0.message)" }.joined(separator: "\n")
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(text, forType: .string)
                         }
                         .buttonStyle(.borderless)
                         .font(.caption)
-                        Button("清空") {
+                        Button("비우기") {
                             bleManager.clearLog()
                         }
                         .buttonStyle(.borderless)
@@ -439,15 +439,15 @@ struct DeviceInfoView: View {
                     .padding(.top, 4)
                 }
             } header: {
-                Text("通信日志")
+                Text("통신 로그")
             }
         }
-        // 「设备信息」在 sheet 中展示时，父视图的 `.alert` 往往不会置顶显示，导致 Hooks 安装/报错像「无反应」。在此重复绑定以确保可见。
+        // 「기기 정보」를 sheet로 표시할 때 상위 뷰의 `.alert`가 최상단에 표시되지 않아, Hooks 설치나 오류가 「반응 없음」처럼 보이는 경우가 있습니다. 여기에서 다시 바인딩해 확실히 표시되도록 합니다.
         .alert("Agent", isPresented: Binding(
             get: { agentManager.agentUserAlert != nil },
             set: { if !$0 { agentManager.agentUserAlert = nil } }
         )) {
-            Button("好", role: .cancel) {
+            Button("확인", role: .cancel) {
                 agentManager.agentUserAlert = nil
             }
         } message: {
@@ -491,21 +491,21 @@ struct DeviceInfoView: View {
     }
 
     private func switchStateLabel(_ state: Int) -> String {
-        state == 0 ? "自动批准" : "手动批准"
+        state == 0 ? "자동 승인" : "수동 승인"
     }
 
     private func agentBluetoothStatusText() -> String {
-        if agentManager.isRunning && agentManager.isAgentBLEConnected { return "Agent 已连接蓝牙" }
-        if agentManager.isRunning { return "Agent 运行中（BLE 未连接）" }
-        if agentManager.isInstalled { return "Agent 未运行" }
-        return "Agent 未安装"
+        if agentManager.isRunning && agentManager.isAgentBLEConnected { return "Agent가 블루투스에 연결됨" }
+        if agentManager.isRunning { return "Agent 실행 중(BLE 미연결)" }
+        if agentManager.isInstalled { return "Agent 실행되지 않음" }
+        return "Agent 설치되지 않음"
     }
 
     private func agentBluetoothShortLabel() -> String {
-        if agentManager.isRunning && agentManager.isAgentBLEConnected { return "已连蓝牙" }
-        if agentManager.isRunning { return "BLE 未连接" }
-        if agentManager.isInstalled { return "未运行" }
-        return "未装 Agent"
+        if agentManager.isRunning && agentManager.isAgentBLEConnected { return "블루투스 연결됨" }
+        if agentManager.isRunning { return "BLE 미연결" }
+        if agentManager.isInstalled { return "실행 안 됨" }
+        return "Agent 미설치"
     }
 
     private func workModeName(_ mode: Int) -> String {
@@ -520,9 +520,9 @@ struct DeviceInfoView: View {
 
     private func lightModeName(_ mode: Int) -> String {
         switch mode {
-        case 0: return "关闭"
-        case 1: return "常亮"
-        case 2: return "呼吸"
+        case 0: return "꺼짐"
+        case 1: return "상시 점등"
+        case 2: return "호흡"
         default: return "\(mode)"
         }
     }

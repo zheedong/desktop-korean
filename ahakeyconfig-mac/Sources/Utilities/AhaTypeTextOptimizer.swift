@@ -5,8 +5,8 @@ final class AhaTypeTextOptimizer: ObservableObject {
     static let shared = AhaTypeTextOptimizer()
 
     @Published private(set) var isEnabled = false
-    @Published private(set) var statusMessage = "AhaType 未启用。"
-    @Published private(set) var lastQuotaSummary = "尚未读取 AhaType 配置。"
+    @Published private(set) var statusMessage = "AhaType가 비활성화되어 있습니다."
+    @Published private(set) var lastQuotaSummary = "AhaType 설정을 아직 읽지 않았습니다."
 
     private let fallbackAPIBase = "https://956798.xyz/prod-api"
 
@@ -71,27 +71,27 @@ final class AhaTypeTextOptimizer: ObservableObject {
         sanitize(&config)
         isEnabled = boolValue(config["typeless_enabled"])
         guard isEnabled else {
-            statusMessage = "AhaType 未启用，直接写入原始转写。"
+            statusMessage = "AhaType가 비활성화되어 있어 원본 전사를 그대로 입력합니다."
             return text
         }
 
         guard tokenIsStillValid(config["token_valid_until"]) else {
-            statusMessage = "AhaType 登录已过期，直接写入原始转写。"
+            statusMessage = "AhaType 로그인이 만료되어 원본 전사를 그대로 입력합니다."
             return text
         }
 
         let token = stringValue(config["access_token"]).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !token.isEmpty else {
-            statusMessage = "AhaType 缺少登录令牌，直接写入原始转写。"
+            statusMessage = "AhaType 로그인 토큰이 없어 원본 전사를 그대로 입력합니다."
             return text
         }
 
         guard let url = URL(string: "\(resolveAPIBase(legacyAPIBase: stringValue(config["api_base"])))/api/v1/typeless/process") else {
-            statusMessage = "AhaType 云端地址无效，直接写入原始转写。"
+            statusMessage = "AhaType 클라우드 주소가 올바르지 않아 원본 전사를 그대로 입력합니다."
             return text
         }
 
-        statusMessage = "AhaType 整理中…"
+        statusMessage = "AhaType 정리 중…"
 
         var request = URLRequest(url: url, timeoutInterval: 120)
         request.httpMethod = "POST"
@@ -103,21 +103,21 @@ final class AhaTypeTextOptimizer: ObservableObject {
             let (data, response) = try await URLSession.shared.data(for: request)
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             guard statusCode == 200 else {
-                statusMessage = "AhaType 请求失败（HTTP \(statusCode)），已写入原始转写。"
+                statusMessage = "AhaType 요청이 실패했습니다(HTTP \(statusCode)). 원본 전사를 입력했습니다."
                 return text
             }
             guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                statusMessage = "AhaType 返回非 JSON，已写入原始转写。"
+                statusMessage = "AhaType 응답이 JSON이 아니어서 원본 전사를 입력했습니다."
                 return text
             }
             let code = intValue(object["code"])
             guard code == 0 || code == 200 else {
                 let message = responseMessage(object)
-                statusMessage = message.isEmpty ? "AhaType 处理失败，已写入原始转写。" : "AhaType 处理失败：\(message)"
+                statusMessage = message.isEmpty ? "AhaType 처리에 실패해 원본 전사를 입력했습니다." : "AhaType 처리 실패: \(message)"
                 return text
             }
             guard let inner = object["data"] as? [String: Any] else {
-                statusMessage = "AhaType 返回缺少 data，已写入原始转写。"
+                statusMessage = "AhaType 응답에 data가 없어 원본 전사를 입력했습니다."
                 return text
             }
 
@@ -130,13 +130,13 @@ final class AhaTypeTextOptimizer: ObservableObject {
             let output = stringValue(inner["text"]).isEmpty ? stringValue(inner["result"]) : stringValue(inner["text"])
             let polished = output.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !polished.isEmpty else {
-                statusMessage = "AhaType 返回空文本，已写入原始转写。"
+                statusMessage = "AhaType 응답이 빈 텍스트여서 원본 전사를 입력했습니다."
                 return text
             }
-            statusMessage = "AhaType 已整理，准备粘贴。"
+            statusMessage = "AhaType 정리를 마쳤습니다. 붙여넣기를 준비합니다."
             return polished
         } catch {
-            statusMessage = "AhaType 网络错误，已写入原始转写。"
+            statusMessage = "AhaType 네트워크 오류로 원본 전사를 입력했습니다."
             return text
         }
     }
@@ -147,27 +147,27 @@ final class AhaTypeTextOptimizer: ObservableObject {
         let valid = tokenIsStillValid(config["token_valid_until"])
 
         if !enabled {
-            statusMessage = "AhaType 未启用。"
+            statusMessage = "AhaType가 비활성화되어 있습니다."
         } else if token.isEmpty {
-            statusMessage = "AhaType 已开启，但尚未登录。"
+            statusMessage = "AhaType가 켜져 있지만 아직 로그인하지 않았습니다."
         } else if !valid {
-            statusMessage = "AhaType 已开启，但登录已过期。"
+            statusMessage = "AhaType가 켜져 있지만 로그인이 만료되었습니다."
         } else {
-            statusMessage = "AhaType 已开启，语音结果会先经云端整理。"
+            statusMessage = "AhaType가 켜져 있어 음성 결과를 먼저 클라우드에서 정리합니다."
         }
 
-        let daily = quotaLine(title: "日", used: config["used_daily"], limit: config["limit_daily"])
-        let weekly = quotaLine(title: "周", used: config["used_weekly"], limit: config["limit_weekly"])
-        let monthly = quotaLine(title: "月", used: config["used_monthly"], limit: config["limit_monthly"])
+        let daily = quotaLine(title: "일", used: config["used_daily"], limit: config["limit_daily"])
+        let weekly = quotaLine(title: "주", used: config["used_weekly"], limit: config["limit_weekly"])
+        let monthly = quotaLine(title: "월", used: config["used_monthly"], limit: config["limit_monthly"])
         let validUntil = stringValue(config["token_valid_until"])
         lastQuotaSummary = [daily, weekly, monthly]
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
         if !validUntil.isEmpty {
-            lastQuotaSummary += lastQuotaSummary.isEmpty ? "有效期 \(validUntil)" : " · 有效期 \(validUntil)"
+            lastQuotaSummary += lastQuotaSummary.isEmpty ? "유효 기간 \(validUntil)" : " · 유효 기간 \(validUntil)"
         }
         if lastQuotaSummary.isEmpty {
-            lastQuotaSummary = "暂无配额信息。"
+            lastQuotaSummary = "사용량 정보가 없습니다."
         }
     }
 
@@ -258,7 +258,7 @@ final class AhaTypeTextOptimizer: ObservableObject {
             let data = try JSONSerialization.data(withJSONObject: sanitized, options: [.prettyPrinted, .sortedKeys])
             try data.write(to: configURL, options: .atomic)
         } catch {
-            statusMessage = "AhaType 配置写入失败。"
+            statusMessage = "AhaType 설정 저장에 실패했습니다."
         }
     }
 

@@ -32,33 +32,33 @@ enum AhaKeyModeSlot: Int, CaseIterable, Codable, Identifiable {
     var subtitle: String {
         switch self {
         case .mode0:
-            "Claude Code · 终端权限 Y/N"
+            "Claude Code · 터미널 권한 Y/N"
         case .mode1:
             "Cursor · Composer Accept/Reject"
         case .mode2:
             "Codex · ↵ / Esc"
         case .mode3:
-            "custom · 自定义模式"
+            "custom · 사용자 지정 모드"
         }
     }
 
     var guidance: String {
         switch self {
         case .mode0:
-            "针对 Claude Code 终端权限菜单：Key2 直接输入 Y（同意），Key3 直接输入 N（拒绝）。"
+            "Claude Code 터미널 권한 메뉴에 맞춘 설정입니다. Key2는 Y(동의)를, Key3는 N(거부)를 바로 입력합니다."
         case .mode1:
-            "针对 Cursor Composer / Agent：Key2 发 ↵、Key3 发 ⌫（与裸键一致）。"
+            "Cursor Composer / Agent에 맞춘 설정입니다. Key2는 ↵, Key3는 ⌫를 보냅니다(단일 키와 동일)."
         case .mode2:
-            "针对 Codex 终端审批：Key2 发送 ↵ 确认，Key3 发送 Esc 取消。"
+            "Codex 터미널 승인에 맞춘 설정입니다. Key2는 ↵로 확인하고, Key3는 Esc로 취소합니다."
         case .mode3:
-            "自定义模式：可自由配置所有按键和灯效。"
+            "사용자 지정 모드입니다. 모든 키와 조명 효과를 자유롭게 설정할 수 있습니다."
         }
     }
 
     var guidanceHoverDetail: String? {
         switch self {
         case .mode1:
-            return "若需与「⌘↵ 接受 / ⌘⌫ 拒绝」等组合键一致，请在编辑器里为对应键加修饰，并在 Cursor 设置 → Keyboard Shortcuts 中绑成相同组合。"
+            return "「⌘↵ 수락 / ⌘⌫ 거부」 같은 조합 키와 맞추려면 편집기에서 해당 키에 조합 키를 추가하고, Cursor 설정 → Keyboard Shortcuts에서 같은 조합으로 지정하세요."
         case .mode0, .mode2, .mode3:
             return nil
         }
@@ -96,9 +96,9 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
     var title: String {
         switch self {
         case .lightBar:
-            "灯条"
+            "라이트 바"
         case .oledDisplay:
-            "LCD 屏幕"
+            "LCD 화면"
         case .key1:
             "Key 1"
         case .key2:
@@ -108,26 +108,26 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
         case .key4:
             "Key 4"
         case .toggleSwitch:
-            "拨杆"
+            "레버"
         }
     }
 
     var subtitle: String {
         switch self {
         case .lightBar:
-            "AI 状态反馈"
+            "AI 상태 표시"
         case .oledDisplay:
-            "动图显示"
+            "움직이는 이미지 표시"
         case .key1:
-            "语音键"
+            "음성 키"
         case .key2:
-            "确认键"
+            "확인 키"
         case .key3:
-            "取消键"
+            "취소 키"
         case .key4:
-            "删除键"
+            "삭제 키"
         case .toggleSwitch:
-            "批准方式"
+            "승인 방식"
         }
     }
 
@@ -193,13 +193,13 @@ enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
     var title: String {
         switch self {
         case .voice:
-            "语音键"
+            "음성 키"
         case .approve:
-            "确认键"
+            "확인 키"
         case .reject:
-            "取消键"
+            "취소 키"
         case .submit:
-            "删除键"
+            "삭제 키"
         }
     }
 
@@ -232,13 +232,13 @@ enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
     var manualText: String {
         switch self {
         case .voice:
-            "优先用来触发语音输入，用户在软件里看到的是语音软件名，底层仍写成快捷键。"
+            "주로 음성 입력을 실행하는 데 사용합니다. 소프트웨어에는 음성 프로그램 이름이 표시되지만, 내부적으로는 단축키로 기록됩니다."
         case .approve:
-            "适合批准、确认、继续执行这类高频动作。"
+            "승인, 확인, 계속 실행처럼 자주 사용하는 동작에 적합합니다."
         case .reject:
-            "适合拒绝、取消、停止这类相反动作。"
+            "거부, 취소, 중지처럼 반대되는 동작에 적합합니다."
         case .submit:
-            "出厂默认 Backspace，适合删除、撤销输入或清理当前内容。"
+            "공장 기본값은 Backspace이며, 삭제나 입력 취소, 현재 내용 정리에 적합합니다."
         }
     }
 }
@@ -317,7 +317,7 @@ struct ShortcutBinding: Codable, Equatable {
         let modifierLabel = orderedModifiers.map(\.symbol).joined()
         let keyLabel = keyCode == 0 ? "" : HIDUsage.name(for: keyCode)
         let combined = modifierLabel + keyLabel
-        return combined.isEmpty ? "未设置" : combined
+        return combined.isEmpty ? "설정 안 됨" : combined
     }
 
     var isConfigured: Bool {
@@ -358,13 +358,13 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
 
     var id: String { rawValue }
 
-    /// claudeCode / kimiCode 与 macOSNative 底层路由完全相同，合并展示为同一选项。
-    /// 保留枚举 case 是为了向下兼容已存储的配置数据；迁移在 AhaKeyStudioStore 完成。
+    /// claudeCode / kimiCode는 내부 라우팅이 macOSNative와 완전히 같으므로 하나의 옵션으로 합쳐 표시합니다.
+    /// 열거형 case를 남겨 둔 것은 이미 저장된 설정 데이터와의 하위 호환을 위한 것이며, 마이그레이션은 AhaKeyStudioStore에서 처리합니다.
     var isMacOSNativeFamily: Bool {
         self == .macOSNative || self == .claudeCode || self == .kimiCode
     }
 
-    /// Picker 中实际展示的选项（微信/豆包并入 Fn/Globe；旧 case 保留用于迁移）
+    /// Picker에 실제로 표시되는 옵션입니다(WeChat/Doubao는 Fn/Globe로 통합되었고, 이전 case는 마이그레이션용으로 남겨 둡니다).
     static var visibleCases: [VoicePreset] {
         [.macOSNative, .typeless, .custom]
     }
@@ -372,34 +372,34 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
     var title: String {
         switch self {
         case .macOSNative, .claudeCode, .kimiCode:
-            "macOS 原生转写"
+            "macOS 기본 음성 변환"
         case .typeless:
             "Fn/Globe"
         case .wechat:
-            "微信语音"
+            "WeChat 음성"
         case .codex:
             "Codex"
         case .doubao:
-            "豆包输入法"
+            "Doubao 입력기"
         case .custom:
-            "自定义快捷键"
+            "사용자 지정 단축키"
         }
     }
 
     var detail: String {
         switch self {
         case .macOSNative, .claudeCode, .kimiCode:
-            "调用苹果原生语音转写，识别完成后以 ⌘V 写回当前光标位置。适合 Claude Code、Kimi Code、Codex 等 CLI 终端及任意输入框。按一次开始，再按一次结束。"
+            "Apple 기본 음성 변환을 호출하고, 인식이 끝나면 ⌘V로 현재 커서 위치에 입력합니다. Claude Code, Kimi Code, Codex 같은 CLI 터미널과 모든 입력란에 적합합니다. 한 번 누르면 시작하고, 다시 누르면 종료합니다."
         case .typeless:
-            "预设对应快捷键：Typeless/微信语音/豆包输入法内仍选 Fn/Globe。本 Studio 使用 F19 作为 Fn 触发键；按下后向系统注入「按住 Fn」。旧版 F18 仍会兼容监听。请授予输入监控与辅助功能。"
+            "대응하는 단축키 프리셋입니다. Typeless, WeChat 음성, Doubao 입력기에서도 Fn/Globe를 선택하세요. 이 Studio는 F19를 Fn 트리거 키로 사용하며, 누르면 시스템에 「Fn 누르고 있기」를 전달합니다. 이전 버전의 F18도 계속 호환 감지합니다. 입력 모니터링과 손쉬운 사용 권한을 허용해 주세요."
         case .wechat:
-            "AhaKey Studio 使用 F19 作为 Fn 触发键，并在后台把语音键的按下/松开转换成 Fn/Globe，便于接入微信语音。"
+            "AhaKey Studio는 F19를 Fn 트리거 키로 사용하며, 백그라운드에서 음성 키의 누름/떼기를 Fn/Globe로 변환해 WeChat 음성과 연동하기 쉽게 합니다."
         case .doubao:
-            "豆包输入法 Mac 版需要直接接收真实语音键事件。AhaKey Studio 会切到豆包输入源，并把 F18 配置为豆包长按语音快捷键；按住语音键说话，松开后由豆包提交文字。"
+            "Doubao 입력기 Mac 버전은 실제 음성 키 이벤트를 직접 받아야 합니다. AhaKey Studio는 Doubao 입력 소스로 전환하고, F18을 Doubao의 길게 누르기 음성 단축키로 설정합니다. 음성 키를 누른 채 말하고 떼면 Doubao가 텍스트를 입력합니다."
         case .codex:
-            "规划中，保留入口。"
+            "준비 중이며, 진입점만 남겨 둡니다."
         case .custom:
-            "直接自己指定底层快捷键。"
+            "내부 단축키를 직접 지정합니다."
         }
     }
 
@@ -417,7 +417,7 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
         case .macOSNative:
             ShortcutBinding(keyCode: HIDUsage.f18)
         case .typeless:
-            // 与 macOS 原生默认 F18 错开；固件可把 Typeless 档语音键设为 F19，Mode 0 另有 F18 出厂兼容路由
+            // macOS 기본값 F18과 겹치지 않게 합니다. 펌웨어는 Typeless 단계의 음성 키를 F19로 설정할 수 있고, Mode 0에는 F18 공장 호환 라우팅이 따로 있습니다
             ShortcutBinding(keyCode: HIDUsage.f19)
         case .wechat:
             ShortcutBinding(keyCode: HIDUsage.f19)
@@ -446,26 +446,26 @@ enum LightBarPreviewState: String, CaseIterable, Codable, Identifiable {
     var title: String {
         switch self {
         case .aiRunning:
-            "AI 运行中"
+            "AI 실행 중"
         case .waitingApproval:
-            "等待批准"
+            "승인 대기"
         case .stopped:
-            "已停止"
+            "중지됨"
         case .taskCompleted:
-            "任务完成"
+            "작업 완료"
         }
     }
 
     var detail: String {
         switch self {
         case .aiRunning:
-            "默认效果是来回流水灯。"
+            "기본 효과는 좌우로 흐르는 조명입니다."
         case .waitingApproval:
-            "提醒用户当前需要确认。"
+            "지금 확인이 필요하다고 알립니다."
         case .stopped:
-            "默认用红色常亮停住。"
+            "기본적으로 빨간색 상시 점등으로 멈춥니다."
         case .taskCompleted:
-            "表示本轮执行已经完成。"
+            "이번 실행이 완료되었음을 나타냅니다."
         }
     }
 
@@ -535,45 +535,45 @@ enum LightEffectStyle: String, CaseIterable, Codable, Identifiable {
 
     var title: String {
         switch self {
-        case .off: "熄灭"
-        case .middleLight: "中间停住"
-        case .singleMove: "来回流水"
-        case .breathing: "整条呼吸"
-        case .rainbowMove: "彩虹流水"
-        case .rainbowWave: "彩虹波浪"
-        case .rainbowWaveSlow: "彩虹慢波浪"
-        case .typingRipple: "打字涟漪"
-        case .comet: "彗星拖尾"
-        case .scanBar: "扫描条"
-        case .pulseCenter: "中心脉冲"
-        case .warningBlink: "警告闪烁"
-        case .successSweep: "成功扫过"
-        case .blueThinking: "蓝色思考"
-        case .lowBattery: "低电量"
-        case .chargingFlow: "充电流动"
-        case .approvalWait: "等待审批"
+        case .off: "꺼짐"
+        case .middleLight: "중앙 정지"
+        case .singleMove: "좌우 흐름"
+        case .breathing: "전체 호흡"
+        case .rainbowMove: "무지개 흐름"
+        case .rainbowWave: "무지개 파도"
+        case .rainbowWaveSlow: "무지개 느린 파도"
+        case .typingRipple: "타이핑 물결"
+        case .comet: "혜성 꼬리"
+        case .scanBar: "스캔 바"
+        case .pulseCenter: "중앙 펄스"
+        case .warningBlink: "경고 점멸"
+        case .successSweep: "성공 스윕"
+        case .blueThinking: "파란색 사고 중"
+        case .lowBattery: "배터리 부족"
+        case .chargingFlow: "충전 흐름"
+        case .approvalWait: "승인 대기"
         }
     }
 
     var detail: String {
         switch self {
-        case .off: "不点亮灯条。"
-        case .middleLight: "中间最亮，两侧渐弱，适合停住提示。"
-        case .singleMove: "单点来回移动，适合运行中。"
-        case .breathing: "整条均匀起伏，适合等待确认。"
-        case .rainbowMove: "彩色单点流水，更活跃。"
-        case .rainbowWave: "整条彩色流动，更显眼。"
-        case .rainbowWaveSlow: "比普通彩虹波浪更慢，适合做氛围效果。"
-        case .typingRipple: "从中心向两侧扩散的涟漪效果。"
-        case .comet: "带拖尾的单向扫过，像彗星。"
-        case .scanBar: "3 灯一组左右扫描。"
-        case .pulseCenter: "中心快速脉冲扩散。"
-        case .warningBlink: "橙色快速闪烁，适合警告。"
-        case .successSweep: "绿色从左到右逐渐点亮。"
-        case .blueThinking: "蓝色呼吸波浪，适合思考中。"
-        case .lowBattery: "红色慢闪，表示低电量。"
-        case .chargingFlow: "绿色填充流动，表示充电中。"
-        case .approvalWait: "琥珀色呼吸 + 中心闪烁，等待用户操作。"
+        case .off: "라이트 바를 켜지 않습니다."
+        case .middleLight: "중앙이 가장 밝고 양쪽으로 점점 어두워져, 정지 상태를 알리기에 적합합니다."
+        case .singleMove: "한 점이 좌우로 움직여 실행 중 상태에 적합합니다."
+        case .breathing: "전체가 고르게 밝아지고 어두워져 확인 대기에 적합합니다."
+        case .rainbowMove: "색이 있는 한 점이 흘러 더 활기찬 느낌을 줍니다."
+        case .rainbowWave: "전체가 색으로 흘러 더 눈에 잘 띕니다."
+        case .rainbowWaveSlow: "일반 무지개 파도보다 느려 분위기 연출에 적합합니다."
+        case .typingRipple: "중앙에서 양쪽으로 퍼지는 물결 효과입니다."
+        case .comet: "꼬리를 남기며 한 방향으로 지나가는, 혜성 같은 효과입니다."
+        case .scanBar: "3개 조명이 한 조로 좌우를 스캔합니다."
+        case .pulseCenter: "중앙에서 빠르게 펄스가 퍼집니다."
+        case .warningBlink: "주황색으로 빠르게 점멸하여 경고에 적합합니다."
+        case .successSweep: "초록색이 왼쪽에서 오른쪽으로 차례로 켜집니다."
+        case .blueThinking: "파란색 호흡 파도로 사고 중 상태에 적합합니다."
+        case .lowBattery: "빨간색으로 느리게 점멸하여 배터리 부족을 나타냅니다."
+        case .chargingFlow: "초록색이 채워지며 흘러 충전 중임을 나타냅니다."
+        case .approvalWait: "호박색 호흡과 중앙 점멸로 사용자 조작을 기다립니다."
         }
     }
 }
@@ -667,13 +667,13 @@ struct AhaKeyLightBarDraft: Codable, Equatable {
     }
 }
 
-/// 固件宏步骤动作类型。
-/// 对应老 Python 客户端 `MacroAction`，固件端已实现执行逻辑。
+/// 펌웨어 매크로 단계의 동작 유형입니다.
+/// 기존 Python 클라이언트의 `MacroAction`에 대응하며, 실행 로직은 펌웨어 쪽에 구현되어 있습니다.
 enum MacroAction: UInt8, Codable, CaseIterable, Identifiable {
     case noOp = 0
     case downKey = 1
     case upKey = 2
-    /// `param` 单位为 3ms（固件规定），最大 255 ≈ 765ms。
+    /// `param`의 단위는 3ms이며(펌웨어 규정), 최대 255 ≈ 765ms입니다.
     case delay = 3
     case upAllKeys = 4
 
@@ -681,30 +681,30 @@ enum MacroAction: UInt8, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .noOp: return "空操作"
-        case .downKey: return "按下"
-        case .upKey: return "松开"
-        case .delay: return "延时"
-        case .upAllKeys: return "全部松开"
+        case .noOp: return "동작 없음"
+        case .downKey: return "누르기"
+        case .upKey: return "떼기"
+        case .delay: return "지연"
+        case .upAllKeys: return "전체 떼기"
         }
     }
 
-    /// 是否需要 HID 键码作为 param。
+    /// param으로 HID 키 코드가 필요한지 여부입니다.
     var takesKeycodeParam: Bool {
         self == .downKey || self == .upKey
     }
 
-    /// 是否把 param 当 delay 单位（×3ms）使用。
+    /// param을 지연 단위(×3ms)로 사용하는지 여부입니다.
     var takesDelayParam: Bool {
         self == .delay
     }
 }
 
-/// 一个宏步骤。对固件协议而言就是 (action, param) 两个字节。
+/// 매크로 단계 하나입니다. 펌웨어 프로토콜에서는 (action, param) 두 바이트에 해당합니다.
 struct MacroStep: Codable, Equatable, Identifiable {
     var id: UUID
     var action: MacroAction
-    /// downKey/upKey：HID keycode；delay：×3ms；noOp / upAllKeys：忽略。
+    /// downKey/upKey는 HID keycode, delay는 ×3ms, noOp / upAllKeys는 무시됩니다.
     var param: UInt8
 
     init(id: UUID = UUID(), action: MacroAction, param: UInt8 = 0) {
@@ -733,7 +733,7 @@ struct MacroStep: Codable, Equatable, Identifiable {
         try c.encode(param, forKey: .param)
     }
 
-    /// 渲染成 `↓` / `Enter` / `+5ms`… 这样的人类可读片段，inspector 和 summary 都用。
+    /// `↓` / `Enter` / `+5ms`처럼 사람이 읽을 수 있는 형태로 표시하며, inspector와 summary에서 함께 사용합니다.
     var displayLabel: String {
         switch action {
         case .noOp:
@@ -752,14 +752,14 @@ struct MacroStep: Codable, Equatable, Identifiable {
 }
 
 extension Array where Element == MacroStep {
-    /// 展平成 (action, param, action, param, ...) 字节流，长度 = 2 × 步数。
-    /// 固件上限 98 字节 ≈ 49 步；这里不做截断，由调用方检查/提示。
+    /// (action, param, action, param, ...) 바이트 스트림으로 펼치며, 길이는 2 × 단계 수입니다.
+    /// 펌웨어 상한은 98바이트 ≈ 49단계입니다. 여기서는 자르지 않고 호출하는 쪽에서 확인하거나 안내합니다.
     var flattenedBytes: [UInt8] {
         flatMap { [$0.action.rawValue, $0.param] }
     }
 
-    /// 浓缩描述：把连续的 down/up 对合并成 `X` 方便展示。
-    /// 不能完整还原所有细节，只用于 UI summary。
+    /// 요약 설명입니다. 연속된 down/up 쌍을 `X`로 합쳐 보기 쉽게 표시합니다.
+    /// 모든 세부 정보를 그대로 복원할 수는 없으며, UI summary 전용입니다.
     var displaySummary: String {
         var parts: [String] = []
         var i = 0
@@ -784,8 +784,8 @@ extension Array where Element == MacroStep {
 struct AhaKeyKeyDraft: Codable, Equatable, Identifiable {
     let role: AhaKeyKeyRole
     var shortcut: ShortcutBinding
-    /// 非空则整个按键走固件宏下发（`cmdUpdateCustomKey / subMacro`），
-    /// 此时 `shortcut` 被忽略。为空则走 `subShortcut`（单键/组合键）。
+    /// 비어 있지 않으면 해당 키 전체를 펌웨어 매크로로 전송합니다(`cmdUpdateCustomKey / subMacro`).
+    /// 이때 `shortcut`은 무시됩니다. 비어 있으면 `subShortcut`(단일 키/조합 키)을 사용합니다.
     var macro: [MacroStep]
     var description: String
     var voicePreset: VoicePreset?
@@ -836,7 +836,7 @@ struct AhaKeyKeyDraft: Codable, Equatable, Identifiable {
 
     var title: String { role.title }
 
-    /// 当前按键是否以"宏"形式下发。
+    /// 현재 키를 "매크로" 형태로 전송하는지 여부입니다.
     var usesMacro: Bool { !macro.isEmpty }
 
     var displaySummary: String {
@@ -844,7 +844,7 @@ struct AhaKeyKeyDraft: Codable, Equatable, Identifiable {
             return voicePreset.title
         }
         if usesMacro {
-            return "宏：\(macro.displaySummary)"
+            return "매크로: \(macro.displaySummary)"
         }
         return shortcut.displayLabel
     }
@@ -886,13 +886,13 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
         let statusLine: String
         switch mode {
         case .mode0:
-            statusLine = "Claude Code · 终端权限菜单 Y/N。"
+            statusLine = "Claude Code · 터미널 권한 메뉴 Y/N."
         case .mode1:
-            statusLine = "Cursor · ↵ 接受改动 / ⌫ 拒绝改动。"
+            statusLine = "Cursor · ↵ 변경 수락 / ⌫ 변경 거부."
         case .mode2:
-            statusLine = "Codex · 审批 ↵ / Esc。"
+            statusLine = "Codex · 승인 ↵ / Esc."
         case .mode3:
-            statusLine = "自定义模式。"
+            statusLine = "사용자 지정 모드."
         }
         return AhaKeyOLEDDraft(
             localAssetPath: DefaultOLEDAssets.bundledAssetPath(for: mode),
@@ -950,9 +950,9 @@ struct AhaKeyModeDraft: Codable, Equatable, Identifiable {
         }
     }
 
-    /// Claude CLI 新版菜单 "1. Yes / 2. Yes, allow all / 3. No"：
-    /// 光标默认在 Yes 上，所以 No 需要先 ↓ 两次再回车。
-    /// 这是一个固件原生宏（action/param pairs），由键盘自己串行吐三个 HID 事件。
+    /// Claude CLI 신규 메뉴 "1. Yes / 2. Yes, allow all / 3. No":
+    /// 커서가 기본적으로 Yes에 있으므로, No는 ↓를 두 번 누른 뒤 Enter를 입력해야 합니다.
+    /// 펌웨어 기본 매크로(action/param pairs)로, 키보드가 직접 세 개의 HID 이벤트를 순차적으로 전송합니다.
     static let claudeNoMacroSteps: [MacroStep] = [
         .init(action: .downKey, param: HIDUsage.downArrow),
         .init(action: .upKey, param: HIDUsage.downArrow),
@@ -974,14 +974,14 @@ struct AhaKeyModeDraft: Codable, Equatable, Identifiable {
 
         switch mode {
         case .mode0:
-            // Yes 按 Enter；No 用固件原生宏 ↓↓⏎。
+            // Yes는 Enter를 누르고, No는 펌웨어 기본 매크로 ↓↓⏎를 사용합니다.
             approveShortcut = ShortcutBinding(keyCode: HIDUsage.enter)
             rejectShortcut = ShortcutBinding()
             rejectMacro = claudeNoMacroSteps
             approveDescription = "Yes"
             rejectDescription = "No"
         case .mode1:
-            // 与固件 `defult_key_0_1` 等裸 HID 风格一致：单键 Enter / Backspace。若要用 Composer 默认 ⌘ 组合，由用户在编辑器中勾选 ⌘ 或改 Cursor 快捷键。
+            // 펌웨어의 `defult_key_0_1` 같은 단순 HID 방식과 동일하게 단일 키 Enter / Backspace를 사용합니다. Composer 기본 ⌘ 조합을 쓰려면 사용자가 편집기에서 ⌘를 선택하거나 Cursor 단축키를 변경합니다.
             approveShortcut = ShortcutBinding(keyCode: HIDUsage.enter)
             rejectShortcut = ShortcutBinding(keyCode: HIDUsage.backspace)
             approveDescription = "Accept"
@@ -1097,7 +1097,7 @@ enum AhaKeyStudioStore {
         }
         next.updateMode(mode0)
 
-        // claudeCode / kimiCode 已合并到 macOSNative，迁移所有 mode 里的旧 preset。
+        // claudeCode / kimiCode는 macOSNative로 통합되었으므로, 모든 mode의 이전 preset을 마이그레이션합니다.
         for modeSlot in AhaKeyModeSlot.allCases {
             var modeDraft = next.draft(for: modeSlot)
             var voiceKey = modeDraft.key(for: .voice)
@@ -1108,8 +1108,8 @@ enum AhaKeyStudioStore {
             }
         }
 
-        // 旧 Mode 0 = Cursor / 旧 Mode 1 = Claude 的用户，自动对调成新默认布局。
-        // 仅当两个 mode 的 approve/reject 都完全等于旧默认时触发，保护手动改过的配置。
+        // 이전 Mode 0 = Cursor / 이전 Mode 1 = Claude를 쓰던 사용자는 새 기본 배치로 자동 교체합니다.
+        // 두 mode의 approve/reject가 모두 이전 기본값과 완전히 같을 때만 실행하여, 직접 변경한 설정을 보호합니다.
         let cursorApproveBinding = ShortcutBinding(modifiers: [.command], keyCode: HIDUsage.enter)
         let cursorRejectBinding = ShortcutBinding(modifiers: [.command], keyCode: HIDUsage.backspace)
         let claudeApproveBinding = ShortcutBinding(keyCode: 0x1C)
@@ -1158,8 +1158,10 @@ enum AhaKeyStudioStore {
             "切换模式时会先显示按键描述，再回到 Mode 1 默认动图。",
             "当前模式还未上传动图，后续可替换成你的自定义 GIF。",
             "Cursor · ⌘↵ 接受改动 / ⌘⌫ 拒绝改动。",
+            "Cursor · ↵ 接受改动 / ⌫ 拒绝改动。",
             "Claude Code · 终端权限菜单 Y/N。",
             "Codex · 审批 ↵ / Esc。",
+            "自定义模式。",
         ]
         let legacyApproveBinding = ShortcutBinding(keyCode: HIDUsage.enter)
         let legacyRejectBinding = ShortcutBinding(keyCode: HIDUsage.escape)
@@ -1174,8 +1176,8 @@ enum AhaKeyStudioStore {
                 modeDraft.oled.statusLine = AhaKeyOLEDDraft.default(for: mode).statusLine
             }
 
-            // LCD 素材路径自愈：用户没选过自定义 GIF（为 nil）或引用的是旧 bundle 路径时，
-            // 刷成当前构建下内置 GIF 的绝对路径；用户自选的外部路径原样保留。
+            // LCD 소재 경로 자동 복구: 사용자가 사용자 지정 GIF를 선택하지 않았거나(nil), 이전 bundle 경로를 참조하는 경우,
+            // 현재 빌드의 내장 GIF 절대 경로로 갱신합니다. 사용자가 직접 선택한 외부 경로는 그대로 유지합니다.
             if let bundled = DefaultOLEDAssets.bundledAssetPath(for: mode) {
                 if modeDraft.oled.localAssetPath == nil
                     || (modeDraft.oled.localAssetPath.map(DefaultOLEDAssets.isBundledPath) ?? false)
@@ -1232,8 +1234,8 @@ enum AhaKeyStudioStore {
                 modeDraft.lightBar.brightness = 35
             }
 
-            // 旧版「全模式通用」模板曾用 主键↵/Esc + Accept/Reject 文案。Codex/其它 mode 的升级仍需要；
-            // Mode 1（Cursor）允许用户**有意**改组合键，若继续套用下面规则会在每次启动时改回出厂 ↵/⌫，表现为改键不保存。
+            // 이전 버전의 「전체 모드 공용」 템플릿은 기본 키 ↵/Esc와 Accept/Reject 문구를 사용했습니다. Codex 및 다른 mode의 업그레이드에는 여전히 필요합니다.
+            // Mode 1(Cursor)은 사용자가 **의도적으로** 조합 키를 변경할 수 있으므로, 아래 규칙을 계속 적용하면 실행할 때마다 공장 기본값 ↵/⌫로 되돌아가 변경한 키가 저장되지 않는 것처럼 보입니다.
             if mode != .mode1 {
                 var approveKey = modeDraft.key(for: .approve)
                 if approveKey.shortcut == legacyApproveBinding,
@@ -1252,17 +1254,17 @@ enum AhaKeyStudioStore {
                     let targetReject = target.key(for: .reject)
                     rejectKey.shortcut = targetReject.shortcut
                     rejectKey.description = targetReject.description
-                    // 必须与当前 mode 的默认一致：Mode 0 的 No 依赖固件宏 ↓↓⏎，不能只拷 shortcut（否则宏为空，UI 会退化成单键展示）。
+                    // 현재 mode의 기본값과 반드시 일치해야 합니다. Mode 0의 No는 펌웨어 매크로 ↓↓⏎에 의존하므로 shortcut만 복사할 수 없습니다(매크로가 비면 UI가 단일 키 표시로 바뀝니다).
                     rejectKey.macro = targetReject.macro
                     modeDraft.updateKey(rejectKey)
                 }
             }
 
-            // Mode 0 (Claude) 专门的升级路径：
-            //   老草稿 1：reject = "N" (0x11)            → 升级成固件原生宏 ↓↓⏎
-            //   老草稿 2：reject = "F20" (0x6F) 代理键   → 升级成固件原生宏 ↓↓⏎
-            // 同时把 approve 从 0x1C (Y) 升级成 Enter。
-            // 升级前提：用户没手动改过描述（为空或仍是默认 "Yes" / "No"）。
+            // Mode 0 (Claude) 전용 업그레이드 경로:
+            //   이전 초안 1: reject = "N" (0x11)            → 펌웨어 기본 매크로 ↓↓⏎로 업그레이드
+            //   이전 초안 2: reject = "F20" (0x6F) 대리 키   → 펌웨어 기본 매크로 ↓↓⏎로 업그레이드
+            // 동시에 approve를 0x1C (Y)에서 Enter로 업그레이드합니다.
+            // 업그레이드 조건: 사용자가 설명을 직접 변경하지 않았을 때(비어 있거나 기본값 "Yes" / "No"일 때)입니다.
             if mode == .mode0 {
                 var approve0 = modeDraft.key(for: .approve)
                 if approve0.shortcut == ShortcutBinding(keyCode: 0x1C),
@@ -1286,7 +1288,7 @@ enum AhaKeyStudioStore {
                     modeDraft.updateKey(reject0)
                 }
 
-                // 自愈：旧版迁移从 Esc 切到 No 时曾漏拷 macro；或用户在 Inspector 里把「宏」切到「单键/组合键」会清空宏。No 的应有配置是空 shortcut + ↓↓⏎。
+                // 자동 복구: 이전 버전 마이그레이션에서 Esc를 No로 바꿀 때 macro 복사가 누락된 경우, 또는 사용자가 Inspector에서 「매크로」를 「단일 키/조합 키」로 바꿔 매크로가 비워진 경우입니다. No의 올바른 설정은 빈 shortcut + ↓↓⏎입니다.
                 var rejectNo = modeDraft.key(for: .reject)
                 if rejectNo.description == "No",
                    rejectNo.macro.isEmpty,
@@ -1299,14 +1301,14 @@ enum AhaKeyStudioStore {
                 }
             }
 
-            // Mode 1（Cursor）取消键为「单键 Backspace」HID 快捷键。若草稿里仍残留非空 macro（例如从其它 mode 误带、或 UI 曾切宏后未清干净），
-            // `usesMacro` 会为 true，全量同步会走 0x74 覆盖 0x73，设备表现与界面上的 ⌫ 不一致（ble-comm 里可见「取消键 宏: …」）。
+            // Mode 1(Cursor)의 취소 키는 「단일 키 Backspace」 HID 단축키입니다. 초안에 비어 있지 않은 macro가 남아 있으면(예: 다른 mode에서 잘못 따라왔거나, UI에서 매크로로 바꾼 뒤 깨끗히 지워지지 않은 경우),
+            // `usesMacro`가 true가 되어 전체 동기화 시 0x74가 0x73을 덮어쓰고, 기기 동작이 화면의 ⌫와 달라집니다(ble-comm에서 「취소 키 매크로: …」로 확인할 수 있습니다).
             if mode == .mode1 {
                 let oldDefaultApprove = ShortcutBinding(modifiers: [.command], keyCode: HIDUsage.enter)
                 let oldDefaultReject = ShortcutBinding(modifiers: [.command], keyCode: HIDUsage.backspace)
                 var approve1 = modeDraft.key(for: .approve)
                 var reject1 = modeDraft.key(for: .reject)
-                // 一版曾出厂为 ⌘↵/⌘⌫：与当前出厂一致（仍为默认文案且无宏）时升到裸键 ↵/⌫。
+                // 한 버전은 공장 기본값이 ⌘↵/⌘⌫였습니다. 현재 공장 기본값과 같을 때(기본 문구를 유지하고 매크로가 없을 때) 단일 키 ↵/⌫로 올립니다.
                 if approve1.shortcut == oldDefaultApprove,
                    reject1.shortcut == oldDefaultReject,
                    approve1.description == "Accept",

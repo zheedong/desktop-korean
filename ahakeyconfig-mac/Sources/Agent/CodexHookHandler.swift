@@ -7,11 +7,11 @@ enum CodexHookHandler {
         let reply = HookSupport.sendUnifiedLightState(stateValue: stateValue)
         let switchState = HookSupport.intValue(reply?["switchState"])
 
-        // SessionStart 时把拨杆状态写入顶层 approval_policy：
-        // Codex 在会话开始即读取审批策略，之后才会决定是否触发 PermissionRequest，
-        // 必须在这里同步才能让"自动/手动"在本次会话生效。
-        // 注意：`cmd: "state"` 的回包不带 switchState（见 AhaKeyAgent.handleJsonCommand），
-        // 必须单独发 `status` 查询拨杆的真实状态。
+        // SessionStart 시점에 레버 상태를 최상위 approval_policy 에 기록한다:
+        // Codex 는 세션 시작 시점에 승인 정책을 읽고, 그 다음에야 PermissionRequest 를 발생시킬지 결정한다.
+        // 따라서 여기서 동기화해야 "자동/수동"이 이번 세션에 적용된다.
+        // 주의: `cmd: "state"` 의 응답에는 switchState 가 없다(AhaKeyAgent.handleJsonCommand 참고).
+        // 레버의 실제 상태를 알려면 `status` 를 따로 보내 조회해야 한다.
         if stateValue == 4 {
             let statusReply = HookSupport.sendJsonRequest(["cmd": "status"], timeout: HookSupport.stateRequestTimeout)
             if let s = HookSupport.intValue(statusReply?["switchState"]) {

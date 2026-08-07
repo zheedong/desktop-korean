@@ -1,16 +1,16 @@
 import SwiftUI
 
-/// 单个键的映射配置
+/// 개별 키의 매핑 설정
 struct KeyConfig: Codable {
     var hidCode: UInt8 = 0
     var description: String = ""
 
     var displayName: String {
-        hidCode == 0 ? "未设置" : HIDUsage.name(for: hidCode)
+        hidCode == 0 ? "설정 안 됨" : HIDUsage.name(for: hidCode)
     }
 }
 
-/// 键位配置持久化
+/// 키 배열 설정 영구 저장
 enum KeyConfigStore {
     private static let key = "keyMappingConfig"
 
@@ -33,9 +33,9 @@ struct KeyMappingView: View {
 
     @State private var selectedKey = 0
     @State private var keys: [KeyConfig] = KeyConfigStore.load() ?? [
-        KeyConfig(hidCode: HIDUsage.capsLock, description: "录音"),
+        KeyConfig(hidCode: HIDUsage.capsLock, description: "녹음"),
         KeyConfig(hidCode: HIDUsage.enter, description: "Enter"),
-        KeyConfig(hidCode: HIDUsage.escape, description: "取消"),
+        KeyConfig(hidCode: HIDUsage.escape, description: "취소"),
         KeyConfig(hidCode: HIDUsage.backspace, description: "Backspace"),
     ]
     @State private var showWriteSuccess = false
@@ -44,8 +44,8 @@ struct KeyMappingView: View {
 
     var body: some View {
         Form {
-            // MARK: - 按键选择
-            Section("按键映射") {
+            // MARK: - 키 선택
+            Section("키 매핑") {
                 HStack(spacing: 12) {
                     ForEach(0..<4) { index in
                         Button {
@@ -80,56 +80,56 @@ struct KeyMappingView: View {
                 }
             }
 
-            // MARK: - 编辑选中键
-            Section("Key \(selectedKey + 1) 设置") {
-                Picker("键码", selection: $keys[selectedKey].hidCode) {
-                    Text("未设置").tag(UInt8(0))
+            // MARK: - 선택한 키 편집
+            Section("Key \(selectedKey + 1) 설정") {
+                Picker("키 코드", selection: $keys[selectedKey].hidCode) {
+                    Text("설정 안 됨").tag(UInt8(0))
                     ForEach(HIDUsage.allOptions, id: \.code) { option in
                         Text("\(option.name)  (\(String(format: "0x%02X", option.code)))")
                             .tag(option.code)
                     }
                 }
 
-                CompatLabeledContent("描述") {
-                    TextField("显示在键盘 LCD 上", text: $keys[selectedKey].description)
+                CompatLabeledContent("설명") {
+                    TextField("키보드 LCD에 표시됩니다", text: $keys[selectedKey].description)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 200)
                 }
             }
 
-            // MARK: - 预设方案
+            // MARK: - 프리셋
             Section {
                 HStack {
-                    Button("EchoWrite 推荐") {
+                    Button("EchoWrite 추천") {
                         applyEchoWritePreset()
                     }
                     .buttonStyle(.bordered)
                     .help("Key1=F18(EchoWrite) Key2=Enter Key3=Escape Key4=Enter")
 
-                    Button("恢复默认") {
+                    Button("기본값 복원") {
                         applyDefaultPreset()
                     }
                     .buttonStyle(.bordered)
-                    .help("恢复出厂默认键位")
+                    .help("공장 기본 키 배열로 복원")
                 }
             } header: {
-                Text("预设方案")
+                Text("프리셋")
             } footer: {
-                Text("EchoWrite 推荐：Key1 发送 F18 触发随声写录音，Key2/4 确认，Key3 取消。")
+                Text("EchoWrite 추천: Key1은 F18을 전송해 EchoWrite 녹음을 시작하고, Key2/4는 확인, Key3은 취소입니다.")
                     .font(.caption)
             }
 
-            // MARK: - 写入设备
+            // MARK: - 기기에 쓰기
             if bleManager.isConnected {
                 Section {
                     HStack {
-                        Button("应用全部键位到设备") {
+                        Button("모든 키 배열을 기기에 적용") {
                             writeAllKeys()
                         }
                         .buttonStyle(.borderedProminent)
 
                         if showWriteSuccess {
-                            Label("已发送", systemImage: "checkmark.circle.fill")
+                            Label("전송 완료", systemImage: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
                                 .font(.caption)
                         }
@@ -140,7 +140,7 @@ struct KeyMappingView: View {
                     HStack {
                         Image(systemName: "exclamationmark.triangle")
                             .foregroundStyle(.orange)
-                        Text("请先连接 AhaKey 设备")
+                        Text("먼저 AhaKey 기기를 연결하세요")
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -181,7 +181,7 @@ struct KeyMappingView: View {
                 bleManager.setKeyDescription(keyIndex: keyIndex, text: key.description)
             }
         }
-        // 写入完毕后保存到 Flash + 本地持久化
+        // 쓰기 완료 후 Flash에 저장 + 로컬 영구 저장
         bleManager.saveConfig()
         KeyConfigStore.save(keys)
         showWriteSuccess = true

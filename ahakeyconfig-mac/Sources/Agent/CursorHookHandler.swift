@@ -10,14 +10,14 @@ enum CursorHookHandler {
         let isAuto = switchState == 0
 
         if isAuto {
-            // 自动模式：返回 allow，让操作直接执行
+            // 자동 모드: allow 를 반환해 작업이 바로 실행되게 한다
             let out: [String: Any] = ["permission": "allow"]
             if let data = try? JSONSerialization.data(withJSONObject: out, options: []),
                let str = String(data: data, encoding: .utf8) {
                 print(str)
             }
         } else {
-            // 手动模式：返回 deny，阻止操作（Cursor 不支持询问模式）
+            // 수동 모드: deny 를 반환해 작업을 차단한다(Cursor 는 확인 요청 모드를 지원하지 않는다)
             let out: [String: Any] = ["permission": "deny"]
             if let data = try? JSONSerialization.data(withJSONObject: out, options: []),
                let str = String(data: data, encoding: .utf8) {

@@ -142,7 +142,7 @@ struct UnifiedAhaKeyOnboardingView: View {
             Spacer(minLength: 0)
             stepper
             Spacer(minLength: 0)
-            Button("跳过") {
+            Button("건너뛰기") {
                 finish()
             }
             .buttonStyle(.plain)
@@ -153,7 +153,7 @@ struct UnifiedAhaKeyOnboardingView: View {
         .background(Color(nsColor: .textBackgroundColor))
     }
 
-    // 顶部步骤导航，所有步骤均可点击跳转
+    // 상단 단계 내비게이션, 모든 단계를 클릭해 이동할 수 있습니다
     private var stepper: some View {
         HStack(spacing: 12) {
             ForEach(AhaKeyOnboardingStep.allCases) { item in
@@ -210,19 +210,19 @@ struct UnifiedAhaKeyOnboardingView: View {
     private var welcomePanel: some View {
         VStack(alignment: .leading, spacing: 28) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("在这台 Mac 上设置 AhaKey")
+                Text("이 Mac에서 AhaKey 설정하기")
                     .font(.system(size: 32, weight: .semibold))
                     .foregroundStyle(.primary)
-                Text("完成键盘连接、后台语音键接管、macOS 原生语音和一次真实输入体验。")
+                Text("키보드 연결, 백그라운드 음성 키 제어, macOS 기본 음성 기능, 그리고 실제 입력 체험까지 완료하세요.")
                     .font(.system(size: 16))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             VStack(spacing: 14) {
-                onboardingCard(systemImage: "keyboard", title: "连接与控制", detail: "开启蓝牙后，AhaKey Studio 会接管出厂语音键并同步当前 Mode。")
-                onboardingCard(systemImage: "lock.shield", title: "分步授权", detail: "先完成蓝牙、麦克风、语音转写等弹窗授权，再依次开启 Siri、听写、辅助功能，最后处理输入监控并重启。")
-                onboardingCard(systemImage: "mic", title: "体验输入", detail: "最后可以直接口述一句话，确认识别和写入链路都已准备好。")
+                onboardingCard(systemImage: "keyboard", title: "연결 및 제어", detail: "블루투스를 켜면 AhaKey Studio가 기본 음성 키를 제어하고 현재 Mode를 동기화합니다.")
+                onboardingCard(systemImage: "lock.shield", title: "단계별 권한 부여", detail: "먼저 블루투스, 마이크, 음성 변환 등 팝업 권한을 허용한 뒤 Siri, 받아쓰기, 손쉬운 사용을 차례로 켜고, 마지막으로 입력 모니터링을 설정하고 앱을 재시작하세요.")
+                onboardingCard(systemImage: "mic", title: "입력 체험", detail: "마지막으로 한 문장을 직접 말해 보면서 인식과 입력 경로가 모두 준비되었는지 확인하세요.")
             }
         }
     }
@@ -230,36 +230,36 @@ struct UnifiedAhaKeyOnboardingView: View {
     private var dialogPermissionsPanel: some View {
         VStack(alignment: .leading, spacing: 24) {
             sectionHeader(
-                title: "第一步：弹窗确认授权",
-                detail: "以下权限点击「申请」后会弹出系统对话框，直接点允许即可。"
+                title: "1단계: 팝업으로 권한 허용",
+                detail: "아래 권한은 「요청」을 누르면 시스템 대화상자가 나타나므로 허용만 눌러 주세요."
             )
 
             VStack(spacing: 12) {
                 PermissionStatusRow(
-                    title: "蓝牙",
+                    title: "블루투스",
                     detail: bluetoothDetail,
                     granted: permissionState.bluetoothReady,
-                    actionTitle: permissionState.bluetoothReady ? nil : "申请",
+                    actionTitle: permissionState.bluetoothReady ? nil : "요청",
                     action: { actions.requestPermission(.bluetooth) }
                 )
                 PermissionStatusRow(
-                    title: "麦克风",
-                    detail: "允许 AhaKey Studio 使用苹果原生语音采集。",
+                    title: "마이크",
+                    detail: "AhaKey Studio가 Apple 기본 음성 수집 기능을 사용하도록 허용합니다.",
                     granted: permissionState.microphoneGranted,
-                    actionTitle: permissionState.microphoneGranted ? nil : "申请",
+                    actionTitle: permissionState.microphoneGranted ? nil : "요청",
                     action: { actions.requestPermission(.microphone) }
                 )
                 PermissionStatusRow(
-                    title: "语音转写",
-                    detail: "允许 AhaKey Studio 使用苹果原生语音识别。",
+                    title: "음성 변환",
+                    detail: "AhaKey Studio가 Apple 기본 음성 인식 기능을 사용하도록 허용합니다.",
                     granted: permissionState.speechRecognitionGranted,
-                    actionTitle: permissionState.speechRecognitionGranted ? nil : "申请",
+                    actionTitle: permissionState.speechRecognitionGranted ? nil : "요청",
                     action: { actions.requestPermission(.speechRecognition) }
                 )
             }
 
             HStack(spacing: 10) {
-                Button("重新检查") {
+                Button("다시 확인") {
                     actions.recheckPermissions()
                 }
                 .buttonStyle(OnboardingSecondaryButtonStyle())
@@ -271,37 +271,37 @@ struct UnifiedAhaKeyOnboardingView: View {
     private var settingsPermissionsPanel: some View {
         VStack(alignment: .leading, spacing: 24) {
             sectionHeader(
-                title: "第二步：系统设置授权",
-                detail: "以下权限需要前往系统设置手动开启，点击「打开设置」后在系统设置中操作。"
+                title: "2단계: 시스템 설정에서 권한 부여",
+                detail: "아래 권한은 시스템 설정에서 직접 켜야 합니다. 「설정 열기」를 누른 뒤 시스템 설정에서 설정하세요."
             )
 
             VStack(spacing: 12) {
                 PermissionStatusRow(
                     title: "Siri",
-                    detail: "在系统设置 > Siri 与聚焦里开启 Siri。",
+                    detail: "시스템 설정 > Siri 및 Spotlight에서 Siri를 켜세요.",
                     granted: permissionState.siriEnabled,
-                    actionTitle: permissionState.siriEnabled ? nil : "打开设置",
+                    actionTitle: permissionState.siriEnabled ? nil : "설정 열기",
                     action: { actions.requestPermission(.siri) }
                 )
                 PermissionStatusRow(
-                    title: "听写",
-                    detail: "在系统设置 > 键盘 > 听写里开启听写。",
+                    title: "받아쓰기",
+                    detail: "시스템 설정 > 키보드 > 받아쓰기에서 받아쓰기를 켜세요.",
                     granted: permissionState.dictationEnabled,
-                    actionTitle: permissionState.dictationEnabled ? nil : "打开设置",
+                    actionTitle: permissionState.dictationEnabled ? nil : "설정 열기",
                     action: { actions.requestPermission(.dictation) }
                 )
                 PermissionStatusRow(
-                    title: "辅助功能",
-                    detail: "允许 AhaKey Studio 把语音键转换成 macOS 原生转写或 Fn/Globe。",
+                    title: "손쉬운 사용",
+                    detail: "AhaKey Studio가 음성 키를 macOS 기본 받아쓰기 또는 Fn/Globe 키로 변환하도록 허용합니다.",
                     granted: permissionState.accessibilityGranted,
-                    actionTitle: permissionState.accessibilityGranted ? nil : "打开设置",
+                    actionTitle: permissionState.accessibilityGranted ? nil : "설정 열기",
                     action: { actions.requestPermission(.accessibility) }
                 )
                 PermissionStatusRow(
-                    title: "输入监控",
-                    detail: "允许 AhaKey Studio 在后台监听实体语音键；设置完成后通常需要退出并重新打开。",
+                    title: "입력 모니터링",
+                    detail: "AhaKey Studio가 백그라운드에서 실물 음성 키를 감지하도록 허용합니다. 설정을 마친 뒤에는 보통 앱을 종료하고 다시 실행해야 합니다.",
                     granted: permissionState.inputMonitoringGranted,
-                    actionTitle: permissionState.inputMonitoringGranted ? nil : "打开设置",
+                    actionTitle: permissionState.inputMonitoringGranted ? nil : "설정 열기",
                     action: {
                         UserDefaults.standard.set(AhaKeyOnboardingStep.tryInput.rawValue, forKey: UnifiedOnboardingStorage.currentStepKey)
                         actions.requestPermission(.inputMonitoring)
@@ -310,7 +310,7 @@ struct UnifiedAhaKeyOnboardingView: View {
             }
 
             HStack(spacing: 10) {
-                Button("重新检查") {
+                Button("다시 확인") {
                     actions.recheckPermissions()
                 }
                 .buttonStyle(OnboardingSecondaryButtonStyle())
@@ -322,8 +322,8 @@ struct UnifiedAhaKeyOnboardingView: View {
     private var tryInputPanel: some View {
         VStack(alignment: .leading, spacing: 24) {
             sectionHeader(
-                title: "第三步：体验输入",
-                detail: "请蓝牙连接小键盘后，将光标放在这里，按下麦克风键开始说话。"
+                title: "3단계: 입력 체험",
+                detail: "블루투스로 키패드를 연결한 뒤 커서를 여기에 두고 마이크 키를 눌러 말해 보세요."
             )
 
             VStack(alignment: .leading, spacing: 14) {
@@ -331,13 +331,13 @@ struct UnifiedAhaKeyOnboardingView: View {
                     Circle()
                         .fill(permissionState.isRecording ? Color.red : (permissionState.canTrySpeechInput ? Color.green : Color.orange))
                         .frame(width: 10, height: 10)
-                    Text(permissionState.isRecording ? "录音中" : (permissionState.canTrySpeechInput ? "语音已准备" : "仍缺语音权限"))
+                    Text(permissionState.isRecording ? "녹음 중" : (permissionState.canTrySpeechInput ? "음성 준비 완료" : "음성 권한이 아직 없음"))
                         .font(.system(size: 15, weight: .semibold))
                 }
 
                 ZStack(alignment: .topLeading) {
                     if tryInputFieldText.isEmpty {
-                        Text("请蓝牙连接小键盘后，将光标放在这里，按下麦克风键开始说话")
+                        Text("블루투스로 키패드를 연결한 뒤 커서를 여기에 두고 마이크 키를 눌러 말해 보세요")
                             .font(.system(size: 16))
                             .foregroundStyle(.tertiary)
                             .padding(.horizontal, 4)
@@ -360,14 +360,14 @@ struct UnifiedAhaKeyOnboardingView: View {
             }
 
             HStack(spacing: 10) {
-                Button(permissionState.isRecording ? "结束并写入" : "开始试说") {
+                Button(permissionState.isRecording ? "종료하고 입력" : "말하기 시작") {
                     didRunTryExperience = true
                     actions.toggleTryExperience()
                 }
                 .buttonStyle(OnboardingPrimaryButtonStyle())
                 .disabled(!permissionState.canTrySpeechInput)
 
-                Button("重新检查") {
+                Button("다시 확인") {
                     actions.recheckPermissions()
                 }
                 .buttonStyle(OnboardingSecondaryButtonStyle())
@@ -376,7 +376,7 @@ struct UnifiedAhaKeyOnboardingView: View {
         }
     }
 
-    // MARK: - Guide Panel（右侧，分组高亮）
+    // MARK: - Guide Panel（오른쪽, 그룹 강조）
 
     private var guidePanel: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -390,23 +390,23 @@ struct UnifiedAhaKeyOnboardingView: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 PermissionGroupSection(
-                    groupLabel: "弹窗授权",
+                    groupLabel: "팝업 권한",
                     isHighlighted: step == .dialogPermissions,
                     items: [
-                        ("蓝牙", permissionState.bluetoothReady),
-                        ("麦克风", permissionState.microphoneGranted),
-                        ("语音转写", permissionState.speechRecognitionGranted),
+                        ("블루투스", permissionState.bluetoothReady),
+                        ("마이크", permissionState.microphoneGranted),
+                        ("음성 변환", permissionState.speechRecognitionGranted),
                     ]
                 )
 
                 PermissionGroupSection(
-                    groupLabel: "系统设置授权",
+                    groupLabel: "시스템 설정 권한",
                     isHighlighted: step == .settingsPermissions || step == .tryInput,
                     items: [
                         ("Siri", permissionState.siriEnabled),
-                        ("听写", permissionState.dictationEnabled),
-                        ("辅助功能", permissionState.accessibilityGranted),
-                        ("输入监控", permissionState.inputMonitoringGranted),
+                        ("받아쓰기", permissionState.dictationEnabled),
+                        ("손쉬운 사용", permissionState.accessibilityGranted),
+                        ("입력 모니터링", permissionState.inputMonitoringGranted),
                     ]
                 )
             }
@@ -414,7 +414,7 @@ struct UnifiedAhaKeyOnboardingView: View {
             Divider().opacity(0.45)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("当前状态")
+                Text("현재 상태")
                     .font(.system(size: 15, weight: .semibold))
                 Text(permissionState.voiceSummary)
                     .font(.system(size: 13))
@@ -428,14 +428,14 @@ struct UnifiedAhaKeyOnboardingView: View {
         }
     }
 
-    // MARK: - Bottom Navigation（文字次级按钮）
+    // MARK: - Bottom Navigation（텍스트 보조 버튼）
 
     private var bottomNavigationBar: some View {
         HStack(spacing: 0) {
             Spacer()
 
             if step != .welcome {
-                Button("上一步") {
+                Button("이전") {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         moveToStep(step.previous)
                     }
@@ -461,9 +461,9 @@ struct UnifiedAhaKeyOnboardingView: View {
 
     private var bottomNextTitle: String {
         switch step {
-        case .welcome: return "开始设置"
-        case .tryInput: return "进入工作台"
-        default: return "下一步"
+        case .welcome: return "설정 시작"
+        case .tryInput: return "작업 공간으로 이동"
+        default: return "다음"
         }
     }
 
@@ -471,12 +471,12 @@ struct UnifiedAhaKeyOnboardingView: View {
 
     private var bluetoothDetail: String {
         if !permissionState.bluetoothPermissionGranted {
-            return "允许 AhaKey Studio 扫描并连接 AhaKey 键盘。"
+            return "AhaKey Studio가 AhaKey 키보드를 검색하고 연결하도록 허용합니다."
         }
         if !permissionState.bluetoothPoweredOn {
-            return "已授权，但系统蓝牙当前关闭，请在控制中心或系统设置中打开。"
+            return "권한은 허용되었지만 시스템 블루투스가 꺼져 있습니다. 제어 센터나 시스템 설정에서 켜세요."
         }
-        return "蓝牙可用，可以扫描并连接键盘。"
+        return "블루투스를 사용할 수 있습니다. 키보드를 검색하고 연결할 수 있습니다."
     }
 
     private var manualSettingsPermissionsGranted: Bool {
@@ -493,7 +493,7 @@ struct UnifiedAhaKeyOnboardingView: View {
         if !permissionState.lastCommittedText.isEmpty {
             return permissionState.lastCommittedText
         }
-        return "这里会显示实时识别或最近写入的内容。"
+        return "실시간 인식 결과나 최근에 입력된 내용이 여기에 표시됩니다."
     }
 
     private func sectionHeader(title: String, detail: String) -> some View {
@@ -555,7 +555,7 @@ struct UnifiedAhaKeyOnboardingView: View {
     }
 }
 
-// MARK: - Permission Group Section（右侧分组视窗）
+// MARK: - Permission Group Section（오른쪽 그룹 패널）
 
 private struct PermissionGroupSection: View {
     var groupLabel: String
@@ -596,7 +596,7 @@ private struct PermissionGroupSection: View {
             Text(title)
                 .font(.system(size: 14, weight: .medium))
             Spacer()
-            Text(granted ? "已开启" : "待开启")
+            Text(granted ? "켜짐" : "켜야 함")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(granted ? Color.green : Color.orange)
         }
@@ -626,7 +626,7 @@ private struct PermissionStatusRow: View {
                 HStack(spacing: 8) {
                     Text(title)
                         .font(.system(size: 16, weight: .semibold))
-                    Text(granted ? "已开启" : "待开启")
+                    Text(granted ? "켜짐" : "켜야 함")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(granted ? Color.green : Color.orange)
                 }
@@ -675,10 +675,10 @@ private enum AhaKeyOnboardingStep: Int, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .welcome: return "欢迎"
-        case .dialogPermissions: return "弹窗授权"
-        case .settingsPermissions: return "系统设置"
-        case .tryInput: return "开始体验"
+        case .welcome: return "환영"
+        case .dialogPermissions: return "팝업 권한"
+        case .settingsPermissions: return "시스템 설정"
+        case .tryInput: return "체험 시작"
         }
     }
 
@@ -688,23 +688,23 @@ private enum AhaKeyOnboardingStep: Int, CaseIterable, Identifiable {
 
     var guideTitle: String {
         switch self {
-        case .welcome: return "设置路线"
-        case .dialogPermissions: return "先完成弹窗确认的权限"
-        case .settingsPermissions: return "再到系统设置中开启"
-        case .tryInput: return "最后试一次真实输入"
+        case .welcome: return "설정 경로"
+        case .dialogPermissions: return "먼저 팝업으로 확인하는 권한부터 완료하세요"
+        case .settingsPermissions: return "이어서 시스템 설정에서 켜세요"
+        case .tryInput: return "마지막으로 실제 입력을 한 번 시도해 보세요"
         }
     }
 
     var guideDetail: String {
         switch self {
         case .welcome:
-            return "引导分两步授权：先完成系统弹窗确认的权限，再前往系统设置开启其余权限，最后体验输入。"
+            return "온보딩은 권한 부여를 두 단계로 나눕니다. 먼저 시스템 팝업으로 확인하는 권한을 완료하고, 이어서 시스템 설정에서 나머지 권한을 켠 다음 마지막으로 입력을 체험합니다."
         case .dialogPermissions:
-            return "蓝牙、麦克风和语音转写可以直接弹窗确认，点击「申请」后在弹窗中允许即可。"
+            return "블루투스, 마이크, 음성 변환은 팝업에서 바로 확인할 수 있습니다. 「요청」을 누른 뒤 팝업에서 허용하면 됩니다."
         case .settingsPermissions:
-            return "请依次开启 Siri、听写、辅助功能，最后开启输入监控。输入监控设置后通常需要退出并重新打开，本引导会记住进度。"
+            return "Siri, 받아쓰기, 손쉬운 사용을 차례로 켜고 마지막으로 입력 모니터링을 켜세요. 입력 모니터링을 설정한 뒤에는 보통 앱을 종료하고 다시 실행해야 하며, 이 온보딩은 진행 상황을 기억합니다."
         case .tryInput:
-            return "这里使用软件内同一套语音链路测试，不再只是展示授权状态。"
+            return "여기서는 앱 내부와 동일한 음성 처리 경로로 테스트하므로, 단순히 권한 상태만 보여 주지 않습니다."
         }
     }
 }
@@ -733,7 +733,7 @@ private struct OnboardingSecondaryButtonStyle: ButtonStyle {
     }
 }
 
-// 次级文字按钮（底部导航"上一步"使用）
+// 보조 텍스트 버튼（하단 내비게이션 "이전"에 사용）
 private struct OnboardingTextButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

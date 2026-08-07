@@ -1,13 +1,13 @@
 import Foundation
 
-// 扫描插件目录、加载 manifest、拉起所有插件，并管它们的生命周期。
+// 플러그인 디렉터리를 스캔해 매니페스트를 로드하고 모든 플러그인을 시작한 뒤 생명주기를 관리합니다.
 //
-// 默认插件目录：
+// 기본 플러그인 디렉터리:
 //   ~/Library/Application Support/AhaKeyConfig/plugins/<id>/plugin.json
 //
-// 可通过环境变量 `AHAKEY_PLUGINS_DIR` 临时覆写（调试用）。
+// 환경 변수 `AHAKEY_PLUGINS_DIR`로 임시로 덮어쓸 수 있습니다(디버깅용).
 //
-// 单个插件加载失败不会影响其他插件 —— 错误写到 stderr，把这个 id 标记为 failed。
+// 플러그인 하나가 로드에 실패해도 다른 플러그인에는 영향을 주지 않습니다. 오류를 stderr에 기록하고 해당 id를 failed로 표시합니다.
 
 public actor PluginManager {
     public struct LoadedPlugin: Sendable {
@@ -48,8 +48,8 @@ public actor PluginManager {
 
     // MARK: - Discover
 
-    /// 扫描 `pluginsRoot` 下所有一级子目录，挑出有 `plugin.json` 的。
-    /// 不抛错（根目录不存在 → 空数组）。
+    /// `pluginsRoot` 아래의 1단계 하위 디렉터리를 모두 스캔해 `plugin.json`이 있는 것만 골라냅니다.
+    /// 오류를 던지지 않습니다(루트 디렉터리가 없으면 빈 배열).
     public func discover() -> [PluginManifest] {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(
@@ -78,7 +78,7 @@ public actor PluginManager {
 
     // MARK: - Load / Unload
 
-    /// 把发现到的插件全部加载。返回成功数；失败的写到 `failures` 与 stderr。
+    /// 발견한 플러그인을 모두 로드합니다. 성공한 개수를 반환하며, 실패한 항목은 `failures`와 stderr에 기록합니다.
     @discardableResult
     public func loadAll() async -> Int {
         let manifests = discover()
@@ -98,7 +98,7 @@ public actor PluginManager {
     }
 
     public func load(manifest: PluginManifest) async throws {
-        if loaded[manifest.id] != nil { return } // 幂等
+        if loaded[manifest.id] != nil { return } // 멱등
 
         let ep = manifest.resolvedEntrypoint
         let client = PluginClient(
@@ -115,7 +115,7 @@ public actor PluginManager {
         await host.registerDefaultHandlers()
         try await client.start()
 
-        // 握手
+        // 핸드셰이크
         let info = try await client.initialize(
             host: appInfo,
             hostMethods: PluginHost.availableHostMethods
@@ -133,7 +133,7 @@ public actor PluginManager {
         loaded.removeAll()
     }
 
-    // MARK: - 查询
+    // MARK: - 조회
 
     public func allLoaded() -> [LoadedPlugin] {
         Array(loaded.values)

@@ -11,8 +11,8 @@ struct OLEDManagerView: View {
 
     var body: some View {
         Form {
-            Section("动画管理") {
-                // 预览区
+            Section("애니메이션 관리") {
+                // 미리보기 영역
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(Color.primary.opacity(0.05))
@@ -28,26 +28,26 @@ struct OLEDManagerView: View {
                             Image(systemName: "photo")
                                 .font(.largeTitle)
                                 .foregroundStyle(.tertiary)
-                            Text("无图片")
+                            Text("이미지 없음")
                                 .foregroundStyle(.tertiary)
                         }
                     }
                 }
 
                 HStack(spacing: 12) {
-                    Button("添加图片") {
+                    Button("이미지 추가") {
                         selectImage()
                     }
                     .buttonStyle(.bordered)
 
-                    Button("添加 GIF") {
+                    Button("GIF 추가") {
                         selectGIF()
                     }
                     .buttonStyle(.bordered)
 
                     Spacer()
 
-                    Button("清空") {
+                    Button("비우기") {
                         selectedImage = nil
                         selectedGIFURL = nil
                         frameCount = 0
@@ -62,7 +62,7 @@ struct OLEDManagerView: View {
                         Stepper("\(fps)", value: $fps, in: 1...30)
                             .frame(width: 100)
                         Spacer()
-                        Text("\(frameCount) 帧")
+                        Text("\(frameCount) 프레임")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -70,16 +70,16 @@ struct OLEDManagerView: View {
 
             if bleManager.isConnected {
                 Section {
-                    Button("上传到设备") {
-                        // TODO: 通过 BLE 0x7343 分包上传图片/GIF 数据
-                        // OLED 分辨率和图片格式待逆向确认
+                    Button("기기로 업로드") {
+                        // TODO: BLE 0x7343을 통해 이미지/GIF 데이터를 분할 패킷으로 업로드
+                        // OLED 해상도와 이미지 포맷은 리버스 엔지니어링으로 확인 필요
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(selectedImage == nil && selectedGIFURL == nil)
                 }
             } else {
                 Section {
-                    Text("请先连接 AhaKey 设备")
+                    Text("먼저 AhaKey 기기를 연결하세요")
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
@@ -112,7 +112,7 @@ struct OLEDManagerView: View {
             }
             selectedGIFURL = url
             selectedImage = NSImage(contentsOf: url)
-            // GIF 帧数估算
+            // GIF 프레임 수 추정
             if let source = CGImageSourceCreateWithURL(url as CFURL, nil) {
                 frameCount = CGImageSourceGetCount(source)
             }

@@ -97,14 +97,14 @@ enum HookSupport {
         switchState: Int?
     ) {
         if switchState == nil, reply == nil {
-            let msg = "[ahakey-hook] \(ide) \(hookName): agent 无回包或 Unix socket 失败（/tmp/ahakey.sock 连不上/超时，超时 \(Int(permissionRequestTimeout))s）。"
-                + "请确认 LaunchAgent 里 ahakeyconfig-agent 在跑、且蓝牙已选「由 Agent 占用」并连上键盘。\n"
+            let msg = "[ahakey-hook] \(ide) \(hookName): 에이전트 응답이 없거나 Unix socket 연결에 실패했습니다(/tmp/ahakey.sock 연결 불가 또는 타임아웃, 제한 시간 \(Int(permissionRequestTimeout))초)."
+                + "LaunchAgent 에서 ahakeyconfig-agent 가 실행 중이고, 블루투스가 「에이전트가 점유」로 설정되어 키보드에 연결되어 있는지 확인해 주세요.\n"
             FileHandle.standardError.write(Data(msg.utf8))
         } else if switchState == nil, reply != nil {
-            let msg = "[ahakey-hook] \(ide) \(hookName): 回包无有效 switchState（需 BLE 已连且能读到拨杆 0=自动批准），将按交回用户/终端处理。\n"
+            let msg = "[ahakey-hook] \(ide) \(hookName): 응답에 유효한 switchState 가 없습니다(BLE 가 연결되어 레버 값을 읽을 수 있어야 하며 0=자동 승인). 사용자/터미널로 넘겨 처리합니다.\n"
             FileHandle.standardError.write(Data(msg.utf8))
         } else if let s = switchState, s != 0 {
-            let msg = "[ahakey-hook] \(ide) \(hookName): 拨杆 switchState=\(s)（非 0），不自动批准。\n"
+            let msg = "[ahakey-hook] \(ide) \(hookName): 레버 switchState=\(s)(0 이 아님)이므로 자동 승인하지 않습니다.\n"
             FileHandle.standardError.write(Data(msg.utf8))
         }
     }
@@ -244,7 +244,7 @@ enum HookSupport {
         var out: [String: Any] = [
             "userCliConfig": CursorCliLeverSync.diagnosticSnapshotForLog(),
             "userPermissionsJson": CursorPermissionsJsonLeverSync.diagnosticSnapshotForLog(),
-            "note": "IDE「Not in allowlist」用 ~/.cursor/permissions.json 的 terminalAllowlist，与 userCliConfig（cli-config=CLI）分离；见 cursor.com/docs/reference/permissions",
+            "note": "IDE 의 「Not in allowlist」는 ~/.cursor/permissions.json 의 terminalAllowlist 를 사용하며, userCliConfig(cli-config=CLI)와는 분리되어 있다. cursor.com/docs/reference/permissions 참고",
             "stdinFields": cursorStdinDebugFields(stdinData),
             "processEnvCursorVscode": cursorRelatedEnvForLog(),
         ]

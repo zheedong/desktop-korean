@@ -1,14 +1,14 @@
 import Foundation
 
-/// 一个 JSON-RPC 2.0 over stdio 客户端。
+/// stdio 기반 JSON-RPC 2.0 클라이언트입니다.
 ///
-/// - 启动子进程（插件 host 端 = 我们；子进程 = 插件本体）。
-/// - 帧格式：**newline-delimited JSON**（每条消息一行 UTF-8 + `\n`）。
-///   这是 stdio 通讯里最常见的选择；如果未来要换成 LSP 的 `Content-Length` 头，
-///   只需替换 `sendFramed(_:)` 与 reader 里的拆帧逻辑。
-/// - 子进程的 `stderr` 透传给上层（默认打到本进程 stderr，可换 `onStderr`）。
+/// - 자식 프로세스를 시작합니다(플러그인 host 측 = 우리 쪽, 자식 프로세스 = 플러그인 본체).
+/// - 프레임 형식: **newline-delimited JSON**(메시지 한 건마다 UTF-8 한 줄 + `\n`).
+///   stdio 통신에서 가장 흔히 쓰이는 방식입니다. 나중에 LSP의 `Content-Length` 헤더 방식으로
+///   바꾸려면 `sendFramed(_:)`와 reader의 프레임 분리 로직만 교체하면 됩니다.
+/// - 자식 프로세스의 `stderr`는 상위 계층으로 그대로 전달합니다(기본은 현재 프로세스의 stderr이며 `onStderr`로 바꿀 수 있습니다).
 ///
-/// 用法：
+/// 사용법:
 /// ```swift
 /// let client = PluginClient(
 ///     executable: URL(fileURLWithPath: "/usr/bin/env"),
@@ -20,20 +20,20 @@ import Foundation
 /// client.stop()
 /// ```
 public actor PluginClient {
-    // MARK: - 配置
+    // MARK: - 설정
 
     private let executable: URL
     private let arguments: [String]
     private let environment: [String: String]?
     private let workingDirectory: URL?
 
-    /// 单次 `call` 等待响应的默认超时。`notify` 不受此影响。
+    /// `call` 한 건이 응답을 기다리는 기본 시간 초과입니다. `notify`는 영향을 받지 않습니다.
     public var defaultCallTimeout: TimeInterval = 30
 
-    /// 子进程 stderr 回调，nil 表示透传到本进程 stderr。
+    /// 자식 프로세스 stderr 콜백이며, nil이면 현재 프로세스의 stderr로 그대로 전달합니다.
     public var onStderr: (@Sendable (String) -> Void)?
 
-    // MARK: - 进程 / 管道
+    // MARK: - 프로세스 / 파이프
 
     private let process = Process()
     private let stdinPipe = Pipe()
@@ -41,21 +41,21 @@ public actor PluginClient {
     private let stderrPipe = Pipe()
     private var started = false
 
-    // MARK: - 协议状态
+    // MARK: - 프로토콜 상태
 
     private var nextID = 1
     private var pending: [Int: CheckedContinuation<JSONValue, Error>] = [:]
 
-    /// 服务端 → 客户端的 notification 处理器（method → 处理闭包）。
+    /// 서버 → 클라이언트 방향 notification 핸들러입니다(method → 처리 클로저).
     public typealias NotificationHandler = @Sendable (JSONValue?) -> Void
     private var notificationHandlers: [String: NotificationHandler] = [:]
 
-    /// 服务端 → 客户端的 request 处理器（method → 返回 result 或抛 JSONRPCError）。
-    /// JSON-RPC 是对等协议，子进程也可以反向调用我们。
+    /// 서버 → 클라이언트 방향 request 핸들러입니다(method → result 반환 또는 JSONRPCError 던짐).
+    /// JSON-RPC는 대등한 양방향 프로토콜이므로 자식 프로세스도 우리를 역방향으로 호출할 수 있습니다.
     public typealias RequestHandler = @Sendable (JSONValue?) async throws -> JSONValue
     private var requestHandlers: [String: RequestHandler] = [:]
 
-    // MARK: - 初始化
+    // MARK: - 초기화
 
     public init(
         executable: URL,
@@ -69,7 +69,7 @@ public actor PluginClient {
         self.workingDirectory = workingDirectory
     }
 
-    // MARK: - 启动 / 停止
+    // MARK: - 시작 / 정지
 
     public func start() throws {
         guard !started else { return }
@@ -81,7 +81,7 @@ public actor PluginClient {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
-        // 子进程退出时，唤醒所有 pending。
+        // 자식 프로세스가 종료되면 대기 중인 모든 pending을 깨웁니다.
         process.terminationHandler = { [weak self] proc in
             Task { await self?.handleProcessTermination(status: proc.terminationStatus) }
         }
@@ -92,7 +92,7 @@ public actor PluginClient {
         startStderrReader()
     }
 
-    /// 优雅停止：关闭 stdin，等子进程自然退出；若想强杀用 `terminate()`。
+    /// 정상 종료: stdin을 닫고 자식 프로세스가 스스로 끝나기를 기다립니다. 강제로 끝내려면 `terminate()`를 사용하세요.
     public func stop() {
         guard started else { return }
         try? stdinPipe.fileHandleForWriting.close()
@@ -103,7 +103,7 @@ public actor PluginClient {
         process.terminate()
     }
 
-    // MARK: - 注册回调
+    // MARK: - 콜백 등록
 
     public func setNotificationHandler(_ method: String, _ handler: @escaping NotificationHandler) {
         notificationHandlers[method] = handler
@@ -113,9 +113,9 @@ public actor PluginClient {
         requestHandlers[method] = handler
     }
 
-    // MARK: - 发送：call / notify
+    // MARK: - 전송: call / notify
 
-    /// 发起 JSON-RPC 调用，等待响应。
+    /// JSON-RPC 호출을 보내고 응답을 기다립니다.
     @discardableResult
     public func call(
         _ method: String,
@@ -128,7 +128,7 @@ public actor PluginClient {
         nextID += 1
         let request = JSONRPCRequest(method: method, params: params, id: .int(id))
 
-        // 先注册 continuation，再发数据，避免响应早于注册。
+        // 응답이 등록보다 먼저 도착하지 않도록 continuation을 먼저 등록한 뒤 데이터를 보냅니다.
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (cont: CheckedContinuation<JSONValue, Error>) in
                 pending[id] = cont
@@ -146,14 +146,14 @@ public actor PluginClient {
         }
     }
 
-    /// 发送 Notification（无 id，不等响应）。
+    /// Notification을 전송합니다(id가 없고 응답을 기다리지 않습니다).
     public func notify(_ method: String, params: JSONValue? = nil) throws {
         guard started, process.isRunning else { throw PluginClientError.notRunning }
         let request = JSONRPCRequest(method: method, params: params, id: nil)
         try sendFramed(request)
     }
 
-    // MARK: - 帧编码
+    // MARK: - 프레임 인코딩
 
     private func sendFramed(_ request: JSONRPCRequest) throws {
         var data = try JSONEncoder().encode(request)
@@ -167,8 +167,8 @@ public actor PluginClient {
 
     // MARK: - Reader（stdout）
 
-    // 之前用 `handle.bytes.lines` 在 daemon-thread 写 stdout 的场景下会延迟数秒才触发，
-    // 改用 `readabilityHandler` 走 dispatch IO，事件驱动、即时。
+    // 기존의 `handle.bytes.lines` 방식은 daemon 스레드가 stdout에 쓰는 상황에서 몇 초씩 늦게 트리거되었습니다.
+    // 그래서 `readabilityHandler`로 바꿔 dispatch IO를 사용하며, 이벤트 기반으로 즉시 처리됩니다.
     private var stdoutBuffer = Data()
 
     private func startReader() {
@@ -177,7 +177,7 @@ public actor PluginClient {
             let data = h.availableData
             guard let self else { return }
             if data.isEmpty {
-                // EOF —— 子进程关了 stdout。
+                // EOF — 자식 프로세스가 stdout을 닫았습니다.
                 h.readabilityHandler = nil
                 Task { await self.handleProcessTermination(status: nil) }
                 return
@@ -207,7 +207,7 @@ public actor PluginClient {
                 return
             }
             if let onStderr, let s = String(data: data, encoding: .utf8) {
-                // 按行回调；保留尾部不完整行（罕见）。
+                // 줄 단위로 콜백을 호출하며, 끝에 남은 불완전한 줄은 그대로 둡니다(드문 경우).
                 for line in s.split(separator: "\n", omittingEmptySubsequences: false) {
                     if !line.isEmpty { onStderr(String(line)) }
                 }
@@ -217,7 +217,7 @@ public actor PluginClient {
         }
     }
 
-    // MARK: - 入站派发
+    // MARK: - 수신 메시지 분배
 
     private func handleIncoming(line: String) async {
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -226,20 +226,20 @@ public actor PluginClient {
             FileHandle.standardError.write(Data("[client←plugin] \(trimmed)\n".utf8))
         }
 
-        // 一条消息可能是：Response（含 id + result/error）、Request（含 id + method）、
-        // 或 Notification（含 method 但无 id）。先看有没有 `method` 字段。
+        // 메시지 한 건은 Response(id + result/error 포함), Request(id + method 포함),
+        // Notification(method는 있지만 id는 없음) 중 하나입니다. 먼저 `method` 필드가 있는지 확인합니다.
         if let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            raw["method"] is String {
             await dispatchInbound(data: data, raw: raw)
             return
         }
 
-        // 当作 Response 解。
+        // Response로 간주하고 디코딩합니다.
         do {
             let resp = try JSONDecoder().decode(JSONRPCResponse.self, from: data)
             dispatch(response: resp)
         } catch {
-            // 实在解不出来：丢到 stderr 便于排查。
+            // 끝까지 해석할 수 없으면 원인 파악을 위해 stderr로 내보냅니다.
             FileHandle.standardError.write(
                 Data("[PluginClient] unrecognized frame: \(trimmed)\n".utf8)
             )
@@ -248,7 +248,7 @@ public actor PluginClient {
 
     private func dispatch(response: JSONRPCResponse) {
         guard case .int(let i)? = response.id else {
-            // 我们发出去的 id 全是 int；其他 id 形式直接丢弃。
+            // 우리가 보내는 id는 모두 int이므로 다른 형태의 id는 그대로 버립니다.
             return
         }
         guard let cont = pending.removeValue(forKey: i) else { return }
@@ -263,7 +263,7 @@ public actor PluginClient {
         guard let method = raw["method"] as? String else { return }
         let params: JSONValue? = {
             guard raw["params"] != nil else { return nil }
-            // 用 JSONValue 重新解一遍 params 字段。
+            // params 필드를 JSONValue로 다시 디코딩합니다.
             struct Wrapper: Decodable { let params: JSONValue? }
             return (try? JSONDecoder().decode(Wrapper.self, from: data))?.params
         }()
@@ -274,7 +274,7 @@ public actor PluginClient {
             return
         }
 
-        // 入站 Request：要回 Response。
+        // 수신 Request이므로 Response를 돌려주어야 합니다.
         let id: JSONRPCID
         do {
             struct Wrapper: Decodable { let id: JSONRPCID }
@@ -326,7 +326,7 @@ public actor PluginClient {
         try stdinPipe.fileHandleForWriting.write(contentsOf: data)
     }
 
-    // MARK: - 超时 / 取消 / 进程终止
+    // MARK: - 시간 초과 / 취소 / 프로세스 종료
 
     private func armTimeout(id: Int, after seconds: TimeInterval) {
         guard seconds > 0 else { return }

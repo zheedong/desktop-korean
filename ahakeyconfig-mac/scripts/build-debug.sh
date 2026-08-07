@@ -1,12 +1,12 @@
 #!/bin/zsh
-# 快速 debug 构建 → 直接把产物塞进 dist/AhaKey Studio.app
-# 用于 Xcode Scheme Pre-action，每次 Cmd+R 前自动刷新 .app 里的二进制。
+# 빠른 debug 빌드 → 산출물을 곧바로 dist/AhaKey Studio.app에 넣습니다
+# Xcode Scheme Pre-action용으로, 매번 Cmd+R 전에 .app 안의 바이너리를 자동 갱신합니다.
 # 111
-# 关键点：
-# 1. 不重新生成 icon、Info.plist、entitlements（如果已存在就复用）——省时
-# 2. 保持 .app 路径、Bundle ID、entitlements 三件不变，TCC 授权条目才能匹配
-# 3. 优先使用 AHAKEY_DEBUG_SIGNING_IDENTITY 环境变量指定的签名身份（建议自签证书）
-#    没有就 fall back 到 ad-hoc；ad-hoc 情况下改完代码 TCC 可能需要重新授权
+# 핵심 포인트:
+# 1. icon, Info.plist, entitlements를 다시 생성하지 않음(이미 있으면 재사용) — 시간 절약
+# 2. .app 경로, Bundle ID, entitlements 세 가지를 유지해야 TCC 권한 항목이 매칭됨
+# 3. AHAKEY_DEBUG_SIGNING_IDENTITY 환경 변수로 지정한 서명 신원을 우선 사용(자체 서명 인증서 권장)
+#    없으면 ad-hoc으로 fall back; ad-hoc인 경우 코드를 고치면 TCC 재승인이 필요할 수 있음
 
 set -euo pipefail
 
@@ -14,8 +14,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 EXECUTABLE_NAME="AhaKeyConfig"
-APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-AhaKey Studio（调试）}"
-APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-AhaKey Studio（调试）}"
+APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-AhaKey Studio (디버그)}"
+APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-AhaKey Studio (디버그)}"
 APP_IDENTIFIER="lab.jawa.ahakeyconfig.debug"
 OUTPUT_DIR="${OUTPUT_DIR:-$APP_ROOT/dist}"
 APP_BUNDLE="$OUTPUT_DIR/$APP_BUNDLE_NAME.app"
@@ -28,15 +28,15 @@ ICONSET_DIR="$APP_ROOT/.build/AhaKeyConfig.iconset"
 ICNS_PATH="$APP_ROOT/.build/AhaKeyConfig.icns"
 SIGNING_IDENTITY="${AHAKEY_DEBUG_SIGNING_IDENTITY:-${SIGNING_IDENTITY:-}}"
 
-# 本地 Debug 默认启用稳定自签证书：TCC 会按证书 CN 记授权，
-# 避免 ad-hoc 签名每次 build 因 cdhash 变化而掉权限。
-# 若显式设置 AHAKEY_DEBUG_ADHOC=1 则强制回退到 ad-hoc（调试签名问题时用）。
+# 로컬 Debug는 기본적으로 안정적인 자체 서명 인증서를 사용합니다: TCC는 인증서 CN 기준으로 권한을 기억하므로
+# ad-hoc 서명이 매 빌드마다 cdhash 변화로 권한을 잃는 문제를 피할 수 있습니다.
+# AHAKEY_DEBUG_ADHOC=1을 명시적으로 설정하면 강제로 ad-hoc으로 되돌립니다(서명 문제 디버그용).
 if [[ -z "$SIGNING_IDENTITY" ]] && [[ "${AHAKEY_DEBUG_ADHOC:-0}" != "1" ]]; then
   if [[ -x "$SCRIPT_DIR/ensure-dev-signing.sh" ]]; then
     if auto_identity="$("$SCRIPT_DIR/ensure-dev-signing.sh")"; then
       SIGNING_IDENTITY="$auto_identity"
     else
-      echo "⚠️  ensure-dev-signing.sh 失败，fall back 到 ad-hoc 签名"
+      echo "⚠️  ensure-dev-signing.sh 실패, ad-hoc 서명으로 fall back합니다"
     fi
   fi
 fi
@@ -55,11 +55,11 @@ fi
 
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources" "$OUTPUT_DIR"
 
-# 内置默认 OLED 动图：供 AhaKeyOLEDDraft 在用户未自定义时作为出厂预览/上传素材。
-# 放在 Contents/Resources/DefaultOLED/，代码里通过 Bundle.main 访问。
+# 기본 OLED 애니메이션 내장: 사용자가 커스터마이즈하지 않았을 때 AhaKeyOLEDDraft의 공장 기본 미리보기/업로드 소재로 사용됩니다.
+# Contents/Resources/DefaultOLED/에 넣고, 코드에서 Bundle.main으로 접근합니다.
 if [[ -d "$APP_ROOT/Resources/DefaultOLED" ]]; then
   mkdir -p "$APP_BUNDLE/Contents/Resources/DefaultOLED"
-  # --delete 保证删掉/换名资源也会同步；同时排除 macOS 隐藏文件以免混进 bundle。
+  # --delete는 삭제/이름 변경된 리소스도 동기화되도록 보장합니다. 동시에 macOS 숨김 파일이 bundle에 섞이지 않도록 제외합니다.
   if command -v rsync >/dev/null 2>&1; then
     rsync -a --delete \
       --exclude='.DS_Store' --exclude='._*' --exclude='.*.swp' \
@@ -74,7 +74,7 @@ if [[ -d "$APP_ROOT/Resources/DefaultOLED" ]]; then
   fi
 fi
 
-# icon：只在缺失时生成，避免每次 Run 都跑一遍 iconutil
+# icon: 없을 때만 생성해서 매번 Run마다 iconutil을 다시 돌리는 것을 방지합니다
 if [[ ! -f "$APP_BUNDLE/Contents/Resources/AhaKeyConfig.icns" ]]; then
   echo "🎨 Generating app icon (first run)..."
   if [[ -f "$ICON_SOURCE" ]]; then
@@ -88,7 +88,7 @@ fi
 
 BUILD_NUMBER="$(git -C "$APP_ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
 
-# Info.plist：只在缺失或 identifier 不对时重写，保证 Bundle ID 恒定 → TCC 条目稳定
+# Info.plist: 없거나 identifier가 다를 때만 다시 씁니다. Bundle ID를 일정하게 유지 → TCC 항목 안정화
 NEED_PLIST=1
 if [[ -f "$INFO_PLIST" ]] && /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INFO_PLIST" 2>/dev/null | grep -qx "$APP_IDENTIFIER"; then
   NEED_PLIST=0
@@ -122,11 +122,11 @@ if [[ "$NEED_PLIST" == "1" ]]; then
   <key>LSMinimumSystemVersion</key>
   <string>15.0</string>
   <key>NSBluetoothAlwaysUsageDescription</key>
-  <string>AhaKey 配置需要蓝牙连接你的 AhaKey 键盘。</string>
+  <string>AhaKey 설정이 블루투스로 AhaKey 키보드에 연결하려면 블루투스 권한이 필요합니다.</string>
   <key>NSMicrophoneUsageDescription</key>
-  <string>AhaKey Studio 需要访问麦克风，才能使用苹果原生语音转写。</string>
+  <string>AhaKey Studio가 Apple 네이티브 음성 받아쓰기를 사용하려면 마이크 접근 권한이 필요합니다.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
-  <string>AhaKey Studio 需要语音识别权限，才能把语音键转换成苹果原生转写。</string>
+  <string>AhaKey Studio가 음성 키를 Apple 네이티브 받아쓰기로 변환하려면 음성 인식 권한이 필요합니다.</string>
 </dict>
 </plist>
 PLIST
@@ -150,7 +150,7 @@ cp "$BUILD_OUTPUT" "$APP_EXECUTABLE"
 cp "$AGENT_OUTPUT" "$AGENT_EXECUTABLE"
 
 if [[ -n "$SIGNING_IDENTITY" ]]; then
-  # 对 40 位十六进制（SHA-1）用 security 反查一下 CN，方便日志定位
+  # 40자리 16진수(SHA-1)라면 security로 CN을 역조회해 로그에서 찾기 쉽게 합니다
   if [[ "$SIGNING_IDENTITY" =~ ^[0-9A-Fa-f]{40}$ ]]; then
     IDENTITY_CN="$(security find-identity -p codesigning "$HOME/Library/Keychains/login.keychain-db" 2>/dev/null \
       | awk -v sha="$SIGNING_IDENTITY" '$2 == sha { sub(/.*"/,""); sub(/".*/,""); print; exit }')"
@@ -168,13 +168,13 @@ else
   codesign --force --sign - --entitlements "$ENTITLEMENTS" "$APP_BUNDLE"
 fi
 
-# 清掉所有 com.apple.quarantine 扩展属性
-# 否则 ad-hoc 签名 + quarantine 会触发 Gatekeeper App Translocation：
-# macOS 会把 .app 拷到 /private/var/folders/.../AppTranslocation/<随机UUID>/ 再启动，
-# 每次启动路径都不同，TCC 授权永远失配，“输入监控/辅助功能”永远识别不到。
+# 모든 com.apple.quarantine 확장 속성을 제거합니다
+# 그렇지 않으면 ad-hoc 서명 + quarantine이 Gatekeeper App Translocation을 유발합니다:
+# macOS가 .app을 /private/var/folders/.../AppTranslocation/<임의 UUID>/로 복사한 뒤 실행하는데,
+# 실행할 때마다 경로가 달라져 TCC 권한이 영원히 매칭되지 않고 "입력 모니터링/손쉬운 사용"이 영원히 인식되지 않습니다.
 xattr -rd com.apple.quarantine "$APP_BUNDLE" 2>/dev/null || true
 
-# 强制 LaunchServices 刷新，避免 macOS 缓存到旧的 bundle 元数据
+# LaunchServices를 강제로 새로고침해 macOS가 오래된 bundle 메타데이터를 캐시하는 것을 방지합니다
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 if [[ -x "$LSREGISTER" ]]; then
   "$LSREGISTER" -f "$APP_BUNDLE" >/dev/null 2>&1 || true

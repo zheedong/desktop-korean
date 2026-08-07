@@ -12,20 +12,20 @@ enum OLEDFrameEncodingError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .cannotCreateImageSource:
-            return "无法读取 GIF 文件。"
+            return "GIF 파일을 읽을 수 없습니다."
         case .noFrames:
-            return "没有可编码的图片帧。"
+            return "인코딩할 이미지 프레임이 없습니다."
         case .cannotCreateContext:
-            return "无法创建 LCD 编码上下文。"
+            return "LCD 인코딩 컨텍스트를 생성할 수 없습니다."
         case .sourceFileTooLarge(let fileSize, let maxBytes):
             let f = ByteCountFormatter()
             f.allowedUnits = [.useMB, .useKB, .useBytes]
             f.countStyle = .file
             let a = f.string(fromByteCount: Int64(fileSize))
             let b = f.string(fromByteCount: Int64(maxBytes))
-            return "图片源文件约 \(a)，超过单文件上限 \(b)。请压缩分辨率、减少帧数或缩短动图后再试。"
+            return "이미지 원본 파일이 약 \(a)로, 파일당 상한인 \(b)를 초과합니다. 해상도를 줄이거나 프레임 수를 줄이거나 애니메이션 길이를 짧게 한 뒤 다시 시도해 주세요."
         case .tooManyFrames(let count, let max):
-            return "当前动图共有 \(count) 帧，超过单模式上限 \(max) 帧。请减少帧数或缩短动图后再试。"
+            return "현재 애니메이션은 총 \(count)프레임으로, 모드당 상한인 \(max)프레임을 초과합니다. 프레임 수를 줄이거나 애니메이션 길이를 짧게 한 뒤 다시 시도해 주세요."
         }
     }
 }
@@ -36,7 +36,7 @@ enum OLEDFrameEncoder {
         return CGImageSourceGetCount(source)
     }
 
-    /// 源 GIF 文件字节数；无法读取时返回 `nil`。
+    /// 원본 GIF 파일의 바이트 수. 읽을 수 없으면 `nil`을 반환한다.
     static func sourceFileByteCount(at url: URL) -> Int? {
         if let v = try? url.resourceValues(forKeys: [.fileSizeKey]), let n = v.fileSize { return n }
         if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
@@ -46,7 +46,7 @@ enum OLEDFrameEncoder {
         return nil
     }
 
-    /// 若超过 `AhaKeyCommand.oledMaxSourceFileBytes` 则抛出 `sourceFileTooLarge`。
+    /// `AhaKeyCommand.oledMaxSourceFileBytes`를 초과하면 `sourceFileTooLarge`를 던진다.
     static func validateGIFSourceFileSize(at url: URL) throws {
         guard let n = sourceFileByteCount(at: url) else {
             return
@@ -130,8 +130,8 @@ enum OLEDFrameEncoder {
         )
         context.draw(image, in: drawRect)
 
-        // 每帧恰好 160*80*2 = 25600 字节 RGB565 大端，原厂 Python 也不做 padding。
-        // flash 物理帧槽是 28672 字节，剩下的 3072 字节由 address 递增自然留空。
+        // 프레임당 정확히 160*80*2 = 25600바이트 RGB565 빅엔디안이며, 원본 Python도 padding을 넣지 않는다.
+        // flash의 물리 프레임 슬롯은 28672바이트이고, 남는 3072바이트는 address가 증가하면서 자연스럽게 비워진다.
         var data = Data(capacity: width * height * 2)
         for pixel in stride(from: 0, to: rgba.count, by: bytesPerPixel) {
             let red = UInt16(rgba[pixel])

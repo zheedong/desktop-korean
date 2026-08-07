@@ -87,8 +87,8 @@ if [[ -d "$APP_ROOT/Resources/DefaultOLED" ]]; then
 fi
 
 BUILD_NUMBER="$(git -C "$APP_ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
-# 版本号：缺省 0.1.0（本地开发），release.yml 打 tag(vX.Y.Z) 时经 APP_VERSION 注入真实版本，
-# 否则所有 Release 都会是同一个写死的版本号，用户无法区分是否已更新。
+# 버전 번호: 기본값 0.1.0(로컬 개발). release.yml에서 tag(vX.Y.Z)를 찍을 때 APP_VERSION으로 실제 버전을 주입합니다.
+# 그렇지 않으면 모든 Release가 동일한 하드코딩 버전이 되어 사용자가 업데이트 여부를 구분할 수 없습니다.
 APP_VERSION_STRING="${APP_VERSION:-0.1.0}"
 
 cat > "$INFO_PLIST" <<PLIST
@@ -119,11 +119,11 @@ cat > "$INFO_PLIST" <<PLIST
   <key>LSMinimumSystemVersion</key>
   <string>${MACOS_DEPLOYMENT_TARGET}</string>
   <key>NSBluetoothAlwaysUsageDescription</key>
-  <string>AhaKey 配置需要蓝牙连接你的 AhaKey 键盘。</string>
+  <string>AhaKey 설정이 블루투스로 AhaKey 키보드에 연결하려면 블루투스 권한이 필요합니다.</string>
   <key>NSMicrophoneUsageDescription</key>
-  <string>AhaKey Studio 需要访问麦克风，才能使用苹果原生语音转写。</string>
+  <string>AhaKey Studio가 Apple 네이티브 음성 받아쓰기를 사용하려면 마이크 접근 권한이 필요합니다.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
-  <string>AhaKey Studio 需要语音识别权限，才能把语音键转换成苹果原生转写。</string>
+  <string>AhaKey Studio가 음성 키를 Apple 네이티브 받아쓰기로 변환하려면 음성 인식 권한이 필요합니다.</string>
 </dict>
 </plist>
 PLIST
@@ -208,7 +208,7 @@ codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
 if [[ "$INSTALL_TO_APPLICATIONS" == "1" ]]; then
   echo "📥 Installing to $DEST_APP..."
 
-  # 单实例：关闭已运行的实例
+  # 단일 인스턴스: 실행 중인 인스턴스를 종료합니다
   if pgrep -f "$DEST_APP/Contents/MacOS/$EXECUTABLE_NAME" >/dev/null 2>&1; then
     osascript -e "tell application id \"$APP_IDENTIFIER\" to quit" 2>/dev/null || true
     for _ in {1..20}; do

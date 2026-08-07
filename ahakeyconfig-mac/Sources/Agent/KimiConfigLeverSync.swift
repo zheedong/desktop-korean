@@ -1,8 +1,8 @@
 import Foundation
 
-/// 将键盘拨杆与 Kimi **`~/.kimi/config.toml`** 的根级 **`default_yolo`** 对齐：**自动档 `true`，手动档 `false`**。
+/// 키보드 레버를 Kimi **`~/.kimi/config.toml`** 의 루트 수준 **`default_yolo`** 와 맞춘다: **자동 단계는 `true`, 수동 단계는 `false`**.
 ///
-/// 不使用「整文件恢复快照」来代表手动档：快照往往在用户原本就开启过 YOLO 时记下 `default_yolo=true`，一还原无论怎样 `/reload` 都会回到 YOLO。自动档仍可在首次写入前备份一份 **`.ahakey.lever0.bak`** 供你以后自行比对；切到手动档时会删掉该快照以免再次误还原。
+/// 수동 단계를 나타내는 데 「전체 파일 스냅샷 복원」을 쓰지 않는다: 사용자가 원래 YOLO 를 켜 둔 상태였다면 스냅샷에 `default_yolo=true` 가 그대로 기록되고, 복원하는 순간 `/reload` 를 어떻게 해도 다시 YOLO 로 돌아가기 때문이다. 자동 단계에서는 첫 기록 전에 **`.ahakey.lever0.bak`** 백업을 남겨 두어 나중에 직접 비교할 수 있게 한다. 수동 단계로 전환할 때는 다시 잘못 복원되지 않도록 그 스냅샷을 삭제한다.
 enum KimiConfigLeverSync {
     private static var configURL: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".kimi/config.toml", isDirectory: false)
@@ -22,7 +22,7 @@ enum KimiConfigLeverSync {
         let fm = FileManager.default
         let path = configURL.path
         guard fm.fileExists(atPath: path) else {
-            fprintStderr("KimiConfigLeverSync: 未找到 \(path)，跳过。\n")
+            fprintStderr("KimiConfigLeverSync: \(path) 를 찾을 수 없어 건너뜁니다.\n")
             KimiHookDebugLog.append(event: "kimi_lever_sync_missing_config", details: ["path": path])
             return
         }
@@ -32,14 +32,14 @@ enum KimiConfigLeverSync {
                 try fm.copyItem(at: configURL, to: snapshotURL)
                 KimiHookDebugLog.append(event: "kimi_lever_sync_backup_created", details: ["to": snapshotURL.path])
             } catch {
-                fprintStderr("KimiConfigLeverSync: 备份失败 \(error.localizedDescription)\n")
+                fprintStderr("KimiConfigLeverSync: 백업 실패 \(error.localizedDescription)\n")
                 KimiHookDebugLog.append(event: "kimi_lever_sync_backup_failed", details: ["error": error.localizedDescription])
             }
         }
 
         guard let data = fm.contents(atPath: path),
               var raw = String(data: data, encoding: .utf8) else {
-            fprintStderr("KimiConfigLeverSync: 无法读取 \(path)\n")
+            fprintStderr("KimiConfigLeverSync: \(path) 를 읽을 수 없습니다\n")
             return
         }
         raw = replaceOrInsertDefaultYolo(raw, template: #"default_yolo = true  # AhaKey: dial auto; run /reload in Kimi after changing dial"#)
@@ -49,14 +49,14 @@ enum KimiConfigLeverSync {
     private static func disableDefaultYoloForManualDial() {
         let fm = FileManager.default
         let path = configURL.path
-        // 删掉旧逻辑用的快照：手动档若用它「整文件还原」会把原先的 default_yolo=true 整块带回来。
+        // 예전 로직이 쓰던 스냅샷을 삭제한다: 수동 단계에서 이 스냅샷으로 「전체 파일 복원」을 하면 원래의 default_yolo=true 가 통째로 되살아난다.
         if fm.fileExists(atPath: snapshotURL.path) {
             do {
                 try fm.removeItem(at: snapshotURL)
                 KimiHookDebugLog.append(event: "kimi_lever_snapshot_removed_for_manual_clear", details: [:])
                 KimiHookDebugLog.stderrLine("removed config.toml.ahakey.lever0.bak (avoid restoring old default_yolo=true)")
             } catch {
-                fprintStderr("KimiConfigLeverSync: 无法删除快照 \(error.localizedDescription)\n")
+                fprintStderr("KimiConfigLeverSync: 스냅샷을 삭제할 수 없습니다 \(error.localizedDescription)\n")
             }
         }
         guard fm.fileExists(atPath: path) else { return }
@@ -95,7 +95,7 @@ enum KimiConfigLeverSync {
                 "reloadHint": "kimi_reload_slash_same_session_ok",
             ])
         } catch {
-            fprintStderr("KimiConfigLeverSync: 写回失败 \(error.localizedDescription)\n")
+            fprintStderr("KimiConfigLeverSync: 기록 실패 \(error.localizedDescription)\n")
             KimiHookDebugLog.append(event: "kimi_lever_sync_write_failed", details: ["error": error.localizedDescription])
         }
     }
@@ -104,7 +104,7 @@ enum KimiConfigLeverSync {
         FileHandle.standardError.write(Data(s.utf8))
     }
 
-    /// 供 `permission-request.log`：`kimiLeverDebug`。
+    /// `permission-request.log` 의 `kimiLeverDebug` 용.
     static func diagnosticSnapshotForLog() -> [String: Any] {
         var d = KimiConfigDiagnostic.snapshotForLog()
         d["leverSnapshotBakExists"] = FileManager.default.fileExists(atPath: snapshotURL.path)

@@ -63,9 +63,9 @@ if [[ -d "$DMG_MOUNTPOINT" ]]; then
 fi
 
 echo "💽 Creating writable HFS+ DMG..."
-# macOS 13+ 上 APFS DMG 的 Finder 元数据持久化不可靠，强制 HFS+。
-# macOS 26 起 hdiutil create -srcfolder 无法处理含签名 .app 的目录（EPERM），
-# 改为：先建空 DMG → 挂载 → ditto 拷入文件，再走 AppleScript 布局。
+# macOS 13+ 에서는 APFS DMG의 Finder 메타데이터 유지가 불안정하므로 HFS+를 강제한다.
+# macOS 26부터 hdiutil create -srcfolder 는 서명된 .app이 포함된 디렉터리를 처리할 수 없다(EPERM).
+# 따라서 방식 변경: 빈 DMG 생성 → 마운트 → ditto로 파일 복사 → AppleScript 레이아웃 적용.
 APP_SIZE_MB=$(du -sm "$APP_BUNDLE_PATH" | awk '{print $1}')
 DMG_SIZE_MB=$(( APP_SIZE_MB + 32 ))
 
@@ -78,20 +78,20 @@ hdiutil create \
   "$RW_DMG_PATH"
 
 echo "🪟 Applying drag-to-install layout..."
-# 关键：不要 -noautoopen，否则 Finder 不会把这个卷加进 visible volume list，
-# 后面 AppleScript 用 `tell disk "..."` 直接失败 -1728 (object not found)
+# 핵심: -noautoopen 을 쓰지 말 것. 그러면 Finder가 이 볼륨을 visible volume list에 추가하지 않아,
+# 이후 AppleScript의 `tell disk "..."` 가 곧바로 -1728 (object not found)로 실패한다.
 hdiutil attach "$RW_DMG_PATH" -mountpoint "$DMG_MOUNTPOINT" -readwrite -noverify
 
-# 把文件拷进挂载好的卷（避免 -srcfolder 的 EPERM 限制）
+# 마운트된 볼륨에 파일을 복사한다(-srcfolder 의 EPERM 제약을 피하기 위함).
 ditto "$APP_BUNDLE_PATH" "$DMG_MOUNTPOINT/$APP_BUNDLE_NAME.app"
 ln -sf /Applications "$DMG_MOUNTPOINT/Applications"
 mkdir -p "$DMG_MOUNTPOINT/.background"
 cp "$BACKGROUND_IMAGE" "$DMG_MOUNTPOINT/.background/InstallerBackground.png"
 
-# 隐藏 .background，不让用户在 Finder 看到目录
+# .background 를 숨겨서 사용자가 Finder에서 이 디렉터리를 보지 못하게 한다.
 chflags hidden "$DMG_MOUNTPOINT/.background" 2>/dev/null || true
 
-# 给 Finder 一点时间把卷加进它的内部 list
+# Finder가 볼륨을 내부 list에 추가할 시간을 조금 준다.
 sleep 3
 
 set +e
@@ -163,13 +163,13 @@ if [[ -n "$SIGNING_IDENTITY" ]]; then
   codesign --verify --deep --strict --verbose=2 "$MOUNTED_APP"
 fi
 
-# 把元数据强制刷盘，再校验 .DS_Store 是否真写进去
+# 메타데이터를 디스크에 강제로 기록한 뒤, .DS_Store 가 실제로 쓰였는지 검증한다.
 sync; sync; sync
 sleep 3
 if [[ -f "$DMG_MOUNTPOINT/.DS_Store" ]]; then
   echo "✅ .DS_Store written ($(stat -f%z "$DMG_MOUNTPOINT/.DS_Store") bytes) — installer layout will persist."
 else
-  echo "⚠️ .DS_Store missing — Finder customization didn't persist. 检查 System Settings > Privacy > Automation 给 Terminal 授予 Finder 权限。"
+  echo "⚠️ .DS_Store missing — Finder customization didn't persist. System Settings > Privacy > Automation 에서 Terminal에 Finder 권한을 부여했는지 확인하세요."
 fi
 
 hdiutil detach "$DMG_MOUNTPOINT" -force

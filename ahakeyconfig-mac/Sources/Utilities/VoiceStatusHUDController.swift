@@ -93,13 +93,13 @@ struct VoiceStatusHUDState: Equatable {
     let title: String
     let subtitle: String
 
-    static let recording = VoiceStatusHUDState(kind: .recording, title: "录音中", subtitle: "再次按语音键结束")
-    static let recognizing = VoiceStatusHUDState(kind: .processing, title: "本地识别中", subtitle: "正在整理语音文本")
-    static let ahaType = VoiceStatusHUDState(kind: .processing, title: "AhaType 整理中", subtitle: "云端正在优化文本")
-    static let pasting = VoiceStatusHUDState(kind: .processing, title: "准备粘贴", subtitle: "正在写入当前光标")
-    static let done = VoiceStatusHUDState(kind: .success, title: "已写入", subtitle: "语音文本已完成")
-    static let empty = VoiceStatusHUDState(kind: .warning, title: "未识别到内容", subtitle: "请靠近麦克风重试")
-    static let failed = VoiceStatusHUDState(kind: .warning, title: "写入失败", subtitle: "请检查输入权限")
+    static let recording = VoiceStatusHUDState(kind: .recording, title: "녹음 중", subtitle: "음성 키를 다시 누르면 종료")
+    static let recognizing = VoiceStatusHUDState(kind: .processing, title: "로컬 인식 중", subtitle: "음성 텍스트를 정리하는 중")
+    static let ahaType = VoiceStatusHUDState(kind: .processing, title: "AhaType 정리 중", subtitle: "클라우드에서 텍스트 최적화 중")
+    static let pasting = VoiceStatusHUDState(kind: .processing, title: "붙여넣기 준비", subtitle: "현재 커서 위치에 입력하는 중")
+    static let done = VoiceStatusHUDState(kind: .success, title: "입력 완료", subtitle: "음성 텍스트가 완성되었습니다")
+    static let empty = VoiceStatusHUDState(kind: .warning, title: "인식된 내용 없음", subtitle: "마이크에 가까이 대고 다시 시도")
+    static let failed = VoiceStatusHUDState(kind: .warning, title: "입력 실패", subtitle: "입력 권한을 확인하세요")
 }
 
 private struct VoiceStatusHUDView: View {
