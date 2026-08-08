@@ -90,6 +90,30 @@ enum HookSupport {
         }
     }
 
+    /// 공유 상태 파일(`current-ide-state.json`)에 기록된 레버 값. 지정한 시간 안에 갱신된 값만 유효로 본다.
+    ///
+    /// BLE 는 이 App 과 데몬 중 하나만 점유할 수 있고, 점유한 쪽이 이 파일을 갱신한다. 데몬이 점유하지 못한
+    /// 상태에서는 데몬이 기동 시점에 들고 있던 값을 계속 응답하므로, 파일 쪽이 최신이면 그것을 신뢰해야 한다.
+    static func liveStateSwitchState(maxAge: TimeInterval = 120) -> Int? {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/AhaKeyConfig/current-ide-state.json")
+        guard let data = try? Data(contentsOf: url),
+              let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let sw = intValue(obj["switchState"])
+        else { return nil }
+        // ts 가 없거나 오래된 값이면 키보드와 끊긴 뒤 남은 찌꺼기일 수 있으므로 쓰지 않는다.
+        guard let ts = obj["ts"] as? Double,
+              Date().timeIntervalSince1970 - ts <= maxAge
+        else { return nil }
+        return sw
+    }
+
+    /// 훅이 자동 승인 판단에 쓸 레버 값. 공유 상태 파일이 최신이면 그것을, 아니면 데몬 응답을 쓴다.
+    /// 둘 다 없으면 nil 을 돌려 호출부가 수동(ask)으로 넘기게 한다.
+    static func resolvedSwitchState(reply: [String: Any]?) -> Int? {
+        liveStateSwitchState() ?? intValue(reply?["switchState"])
+    }
+
     static func emitPermissionStderr(
         ide: String,
         hookName: String,

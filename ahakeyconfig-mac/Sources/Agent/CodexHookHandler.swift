@@ -5,7 +5,7 @@ enum CodexHookHandler {
         let stdinData = HookSupport.readAllStdinSilently()
         let ctx = HookSupport.parseStdinContext(stdinData, label: "Codex")
         let reply = HookSupport.sendUnifiedLightState(stateValue: stateValue)
-        let switchState = HookSupport.intValue(reply?["switchState"])
+        let switchState = HookSupport.resolvedSwitchState(reply: reply)
 
         // SessionStart 시점에 레버 상태를 최상위 approval_policy 에 기록한다:
         // Codex 는 세션 시작 시점에 승인 정책을 읽고, 그 다음에야 PermissionRequest 를 발생시킬지 결정한다.
@@ -36,7 +36,7 @@ enum CodexHookHandler {
         let ctx = HookSupport.parseStdinContext(stdinData, label: "Codex")
         let request: [String: Any] = ["cmd": "permission", "value": Int(HookSupport.permissionLedValue)]
         let reply = HookSupport.sendJsonRequest(request, timeout: HookSupport.permissionRequestTimeout)
-        let switchState = HookSupport.intValue(reply?["switchState"])
+        let switchState = HookSupport.resolvedSwitchState(reply: reply)
         let isAuto = switchState == 0
 
         if let s = switchState {
