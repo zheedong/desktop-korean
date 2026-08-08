@@ -15,9 +15,11 @@ struct DeviceInfoView: View {
             // MARK: - 기기 정보
             Section {
                 HStack(spacing: 0) {
-                    infoCell("배터리", value: "\(bleManager.batteryLevel)%")
+                    // 배터리와 펌웨어는 이 App이 직접 연결했을 때만 채워진다. 점유 주체가 에이전트이거나
+                    // 아직 연결 전이면 초기값 0이 그대로 「0%」/「v0.0」로 보이므로 메인 화면과 같이 「—」로 표시한다.
+                    infoCell("배터리", value: bleManager.isConnected ? "\(bleManager.batteryLevel)%" : "—")
                     Divider()
-                    infoCell("펌웨어", value: "v\(bleManager.firmwareMainVersion).\(bleManager.firmwareSubVersion)")
+                    infoCell("펌웨어", value: bleManager.isConnected ? "v\(bleManager.firmwareMainVersion).\(bleManager.firmwareSubVersion)" : "—")
                     Divider()
                     infoCell("기기 이름", value: bleManager.deviceName ?? "—")
                 }
