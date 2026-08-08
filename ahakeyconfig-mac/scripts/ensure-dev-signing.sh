@@ -1,60 +1,60 @@
 #!/bin/zsh
-# 本地开发专用：确保 login keychain 里有一张稳定的自签代码签名证书。
+# 로컬 개발 전용: login keychain에 안정적인 자체 서명 코드 서명 인증서가 있도록 보장합니다.
 #
-# 用途：让 Debug build 的每次 codesign 都用同一个 CN 签名，
-# 这样即便代码修改导致 cdhash 变化，macOS TCC 仍然按证书 CN 认
-# "输入监控 / 辅助功能 / 麦克风 / 语音转写" 等授权，无需每次重新勾选。
+# 용도: Debug 빌드의 매 codesign이 동일한 CN으로 서명하도록 하여,
+# 코드 수정으로 cdhash가 바뀌어도 macOS TCC가 인증서 CN 기준으로
+# "입력 모니터링 / 손쉬운 사용 / 마이크 / 음성 받아쓰기" 등의 권한을 인식해, 매번 다시 체크할 필요가 없습니다.
 #
-# stdout: 证书 SHA-1 指纹（供 codesign --sign 使用）
-# stderr: 所有进度信息
+# stdout: 인증서 SHA-1 지문(codesign --sign에 사용)
+# stderr: 모든 진행 정보
 #
-# 为什么输出 SHA-1 而不是 CN？
-#   自签证书没系统 trust，`codesign --sign "<CN>"` 会报 "no identity found"；
-#   但 `codesign --sign "<SHA-1>"` 会绕过 trust 检查、直接用私钥签。
-#   签出来的 Authority 字段仍是 CN "AhaKey Local Dev"，TCC 按这个字段认，
-#   所以 CN 必须稳定（不同 build 不能换名字）。
+# 왜 CN이 아니라 SHA-1을 출력하나?
+#   자체 서명 인증서는 시스템 trust가 없어 `codesign --sign "<CN>"`은 "no identity found" 오류가 납니다.
+#   반면 `codesign --sign "<SHA-1>"`은 trust 검사를 우회하고 개인 키로 바로 서명합니다.
+#   서명된 결과의 Authority 필드는 여전히 CN "AhaKey Local Dev"이고 TCC는 이 필드로 인식하므로,
+#   CN은 안정적이어야 합니다(빌드마다 이름을 바꾸면 안 됨).
 #
-# 注意：
-# - 不影响正式发布流程；scripts/build.sh 不会调用此脚本。
-# - 证书仅在 login keychain，不向系统引入信任，也不上传任何地方。
-# - 首次创建时 macOS 可能弹一次"允许 codesign 访问密钥"的提示，
-#   点"总是允许"即可一劳永逸。
+# 참고:
+# - 정식 릴리스 과정에는 영향이 없습니다. scripts/build.sh는 이 스크립트를 호출하지 않습니다.
+# - 인증서는 login keychain에만 있으며, 시스템에 신뢰를 추가하지도, 어디에도 업로드하지도 않습니다.
+# - 최초 생성 시 macOS가 "codesign의 키 접근 허용" 안내를 한 번 표시할 수 있습니다.
+#   "항상 허용"을 누르면 이후에는 다시 묻지 않습니다.
 
 set -euo pipefail
 
 CERT_CN="${AHAKEY_DEV_CERT_CN:-AhaKey Local Dev}"
 KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 
-# 按 CN 精确匹配查 SHA-1
+# CN 정확 일치로 SHA-1 조회
 find_valid_sha1() {
   local cn="$1"
   security find-identity -p codesigning -v "$KEYCHAIN" 2>/dev/null \
     | awk -v cn="\"$cn\"" '$0 ~ cn {print $2; exit}'
 }
 
-# 按正则匹配查第一个有效 identity（用于找 "Apple Development: ..."）
+# 정규식 매칭으로 첫 번째 유효한 identity 조회("Apple Development: ..."를 찾는 데 사용)
 find_valid_by_pattern() {
   local pat="$1"
   security find-identity -p codesigning -v "$KEYCHAIN" 2>/dev/null \
     | awk -v pat="$pat" '$0 ~ pat {print $2; exit}'
 }
 
-# 优先级 1: Apple Development 证书（来自 Xcode 登录 Apple ID 生成）
-#   这是 TCC 稳定匹配的最可靠路径 —— Apple root chain 签的 app，
-#   TCC 严格按 designated requirement 评估，cdhash 变也不会掉权限。
+# 우선순위 1: Apple Development 인증서(Xcode에서 Apple ID 로그인으로 생성됨)
+#   TCC가 안정적으로 매칭되는 가장 확실한 경로입니다 — Apple root chain으로 서명된 앱은
+#   TCC가 designated requirement 기준으로 엄격하게 평가하므로, cdhash가 바뀌어도 권한을 잃지 않습니다.
 apple_dev="$(find_valid_by_pattern 'Apple Development: ')"
 if [[ -n "$apple_dev" ]]; then
-  >&2 echo "🍎 [ensure-dev-signing] 使用 Apple Development 证书 $apple_dev"
+  >&2 echo "🍎 [ensure-dev-signing] Apple Development 인증서 사용 $apple_dev"
   echo "$apple_dev"
   exit 0
 fi
 
-# 优先级 2: 自签 AhaKey Local Dev（若已存在且受信）
+# 우선순위 2: 자체 서명 AhaKey Local Dev(이미 존재하고 신뢰된 경우)
 valid="$(find_valid_sha1 "$CERT_CN")"
 if [[ -n "$valid" ]]; then
-  >&2 echo "🔏 [ensure-dev-signing] 使用自签证书 '$CERT_CN' $valid"
-  >&2 echo "   提示：若之后你在 Xcode 登录 Apple ID 并生成 'Apple Development' 证书，"
-  >&2 echo "   本脚本会自动切换使用它（更稳，无需操作）。"
+  >&2 echo "🔏 [ensure-dev-signing] 자체 서명 인증서 사용 '$CERT_CN' $valid"
+  >&2 echo "   팁: 이후 Xcode에서 Apple ID로 로그인해 'Apple Development' 인증서를 생성하면,"
+  >&2 echo "   이 스크립트가 자동으로 그 인증서로 전환합니다(더 안정적이며, 별도 조치 불필요)."
   echo "$valid"
   exit 0
 fi
@@ -62,31 +62,31 @@ fi
 TMPDIR_LOCAL="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_LOCAL"' EXIT
 
-# 按 CN 精确匹配查任意状态下的 identity（含 untrusted）
+# CN 정확 일치로 상태와 무관하게 identity 조회(untrusted 포함)
 find_any_sha1() {
   security find-identity -p codesigning "$KEYCHAIN" 2>/dev/null \
     | awk -v cn="\"$CERT_CN\"" '$0 ~ cn {print $2; exit}'
 }
 
-# 情况 A：证书已在 keychain 但未受信 → 只需补信任即可，无需重新生成
+# 경우 A: 인증서가 keychain에 있지만 신뢰되지 않음 → 신뢰만 추가하면 되고, 재생성은 불필요
 untrusted="$(find_any_sha1)"
 if [[ -n "$untrusted" ]]; then
-  >&2 echo "🔐 [ensure-dev-signing] 发现 '$CERT_CN' 但未标记为 codesign 受信，补 trust…"
-  # 导出现有证书的 PEM 供 add-trusted-cert 使用
+  >&2 echo "🔐 [ensure-dev-signing] '$CERT_CN'을(를) 찾았지만 codesign 신뢰로 표시되지 않아 trust를 추가합니다…"
+  # add-trusted-cert에서 사용할 수 있도록 기존 인증서를 PEM으로 내보냅니다
   security find-certificate -c "$CERT_CN" -p "$KEYCHAIN" > "$TMPDIR_LOCAL/cert.pem"
 else
-  >&2 echo "🔐 [ensure-dev-signing] 首次创建本地自签代码签名证书 '$CERT_CN' …"
+  >&2 echo "🔐 [ensure-dev-signing] 로컬 자체 서명 코드 서명 인증서 '$CERT_CN'을(를) 처음 생성합니다…"
 
   if ! command -v openssl >/dev/null 2>&1; then
-    >&2 echo "❌ 找不到 openssl，无法创建证书"
+    >&2 echo "❌ openssl을 찾을 수 없어 인증서를 생성할 수 없습니다"
     exit 1
   fi
 
-  # Apple code signing policy 要求：
+  # Apple code signing policy 요구 사항:
   #   keyUsage=digitalSignature
   #   extendedKeyUsage=codeSigning
   #   basicConstraints=CA:FALSE
-  # 缺任何一条 codesign 就会报 "Invalid Key Usage for policy"
+  # 하나라도 빠지면 codesign이 "Invalid Key Usage for policy" 오류를 냅니다
   openssl req -x509 -nodes -newkey rsa:2048 \
     -keyout "$TMPDIR_LOCAL/key.pem" \
     -out "$TMPDIR_LOCAL/cert.pem" \
@@ -98,10 +98,10 @@ else
     >/dev/null 2>&1
 
   PFX_PASS="ahakey-dev-$(date +%s)"
-  # OpenSSL 3.x 默认导出现代格式 (AES-256-CBC/PBKDF2)，
-  # 但 macOS `security import` 只支持传统 PKCS#12 (RC2/3DES)。
-  # `-legacy` 强制回退到传统格式。
-  # LibreSSL / OpenSSL 1.1.x 不识别 -legacy，所以加 fallback。
+  # OpenSSL 3.x는 기본적으로 최신 형식(AES-256-CBC/PBKDF2)으로 내보내지만,
+  # macOS `security import`는 전통적인 PKCS#12(RC2/3DES)만 지원합니다.
+  # `-legacy`로 전통 형식으로 강제 회귀합니다.
+  # LibreSSL / OpenSSL 1.1.x는 -legacy를 인식하지 못하므로 fallback을 추가합니다.
   if ! openssl pkcs12 -export -legacy \
       -in "$TMPDIR_LOCAL/cert.pem" \
       -inkey "$TMPDIR_LOCAL/key.pem" \
@@ -125,34 +125,34 @@ else
     -T /usr/bin/security \
     >/dev/null
 
-  # 尝试免密授权 codesign 使用私钥；失败只是"首次签名会弹一次提示"，
-  # 不影响证书本身可用性。
+  # codesign이 암호 없이 개인 키를 사용하도록 자동 허용을 시도합니다. 실패해도 "첫 서명 때 안내가 한 번 뜨는" 것뿐이고,
+  # 인증서 자체의 사용 가능성에는 영향이 없습니다.
   security set-key-partition-list \
     -S "apple-tool:,apple:,codesign:" \
     -s \
     "$KEYCHAIN" >/dev/null 2>&1 || {
-    >&2 echo "   ⚠️  未能自动授权钥匙串访问，首次签名时可能弹一次密码框，选'总是允许'即可。"
+    >&2 echo "   ⚠️  키체인 접근을 자동으로 허용하지 못했습니다. 첫 서명 시 암호 창이 한 번 뜰 수 있으며, '항상 허용'을 선택하면 됩니다."
   }
 fi
 
-# 建立用户级 code signing trust —— codesign 只接受通过 policy 评估的 identity。
-# 这一步会弹一次 macOS 对话框让用户用 Touch ID / 登录密码确认，
-# 之后永久生效（下次 build 不会再弹）。
->&2 echo "🔑 [ensure-dev-signing] 正在把证书标记为 codesign 可信；"
->&2 echo "   macOS 会弹一次对话框，请用 Touch ID / 登录密码确认。"
+# 사용자 수준 code signing trust 설정 — codesign은 policy 평가를 통과한 identity만 받아들입니다.
+# 이 단계에서 macOS 대화 상자가 한 번 떠서 사용자에게 Touch ID / 로그인 암호 확인을 요청하며,
+# 이후에는 영구적으로 적용됩니다(다음 빌드에서는 다시 뜨지 않음).
+>&2 echo "🔑 [ensure-dev-signing] 인증서를 codesign 신뢰로 표시하는 중입니다;"
+>&2 echo "   macOS 대화 상자가 한 번 뜨면 Touch ID / 로그인 암호로 확인해 주세요."
 if ! security add-trusted-cert -r trustRoot -p codeSign \
       -k "$KEYCHAIN" \
       "$TMPDIR_LOCAL/cert.pem" 2>>/tmp/ahakey-ensure-dev-signing.log; then
-  >&2 echo "❌ add-trusted-cert 失败（看 /tmp/ahakey-ensure-dev-signing.log）"
-  >&2 echo "   若刚才取消了弹窗，再次运行本脚本即可。"
+  >&2 echo "❌ add-trusted-cert 실패(/tmp/ahakey-ensure-dev-signing.log 확인)"
+  >&2 echo "   방금 대화 상자를 취소했다면, 이 스크립트를 다시 실행하면 됩니다."
   exit 1
 fi
 
 sha1="$(find_valid_sha1 "$CERT_CN")"
 if [[ -z "$sha1" ]]; then
-  >&2 echo "❌ 证书受信后仍无法被 codesign 识别为有效 identity"
+  >&2 echo "❌ 인증서가 신뢰된 후에도 codesign이 유효한 identity로 인식하지 못합니다"
   exit 1
 fi
 
->&2 echo "✅ 证书 '$CERT_CN' 已就绪 (SHA-1 $sha1)，后续所有 Debug build 都会用它签名。"
+>&2 echo "✅ 인증서 '$CERT_CN' 준비 완료 (SHA-1 $sha1). 이후 모든 Debug 빌드가 이 인증서로 서명됩니다."
 echo "$sha1"

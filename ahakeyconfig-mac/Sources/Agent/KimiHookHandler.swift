@@ -13,7 +13,7 @@ enum KimiHookHandler {
 
         let request: [String: Any] = ["cmd": "permission", "value": Int(HookSupport.permissionLedValue)]
         let reply = HookSupport.sendJsonRequest(request, timeout: HookSupport.permissionRequestTimeout)
-        let switchState = HookSupport.intValue(reply?["switchState"])
+        let switchState = HookSupport.resolvedSwitchState(reply: reply)
         let isAuto = switchState == 0
 
         KimiHookDebugLog.append(event: "kimi_PreToolUse_agent_reply", details: [
@@ -71,7 +71,7 @@ enum KimiHookHandler {
         KimiHookDebugLog.append(event: "kimi_PreToolUse_stdout", details: [
             "kimiDecision": kimiPreToolDecision,
             "stdoutChars": stdoutPayload.count,
-            "hint": "kimi-cli 读 default_yolo 在 KimiCLI.create/load_config；已开着的会话请输入 /reload 即可（不必退出 kimi）。PreToolUse 仍仅 deny 会拦工具；default_yolo 管交互批准层。",
+            "hint": "kimi-cli 는 KimiCLI.create/load_config 에서 default_yolo 를 읽는다. 이미 열려 있는 세션에서는 /reload 만 입력하면 된다(kimi 를 종료할 필요는 없다). PreToolUse 에서는 여전히 deny 만 도구를 차단하며, default_yolo 는 대화형 승인 계층을 담당한다.",
         ])
         KimiHookDebugLog.stderrLine("stdout chars=\(stdoutPayload.count) decision=\(kimiPreToolDecision)")
 

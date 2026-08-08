@@ -33,7 +33,7 @@ let titleAttr: [NSAttributedString.Key: Any] = [
     .foregroundColor: NSColor(calibratedWhite: 0.13, alpha: 1),
     .paragraphStyle:  centerStyle,
 ]
-"拖动 AhaKey Studio 到 Applications".draw(
+"AhaKey Studio를 Applications로 드래그하세요".draw(
     in: NSRect(x: 60, y: height - 82, width: width - 120, height: 40),
     withAttributes: titleAttr
 )
@@ -44,7 +44,7 @@ let subAttr: [NSAttributedString.Key: Any] = [
     .foregroundColor: NSColor(calibratedWhite: 0.48, alpha: 1),
     .paragraphStyle:  centerStyle,
 ]
-"安装完成后，就能像普通 Mac 应用一样打开使用".draw(
+"설치가 끝나면 일반 Mac 앱처럼 열어서 사용할 수 있습니다".draw(
     in: NSRect(x: 80, y: height - 114, width: width - 160, height: 22),
     withAttributes: subAttr
 )
@@ -84,7 +84,7 @@ let captionAttr: [NSAttributedString.Key: Any] = [
     .foregroundColor: arrowColor,
     .paragraphStyle:  centerStyle,
 ]
-"拖过去安装".draw(
+"드래그해서 설치".draw(
     in: NSRect(x: arrowX0, y: arrowY - 36, width: arrowX1 - arrowX0, height: 20),
     withAttributes: captionAttr
 )

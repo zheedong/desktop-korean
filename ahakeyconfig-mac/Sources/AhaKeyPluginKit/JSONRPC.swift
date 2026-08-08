@@ -1,11 +1,11 @@
 import Foundation
 
-// JSON-RPC 2.0 协议类型（https://www.jsonrpc.org/specification）。
+// JSON-RPC 2.0 프로토콜 타입입니다(https://www.jsonrpc.org/specification).
 //
-// 设计取舍：
-// - params / result 是任意 JSON，用本文件里的 `JSONValue` 表达，避免引入第三方 AnyCodable。
-// - id 允许 int / string / null（按规范）；本客户端只主动使用 int，但收到 string/null 也能解。
-// - 不区分 batch 调用（暂不需要）。要支持时再加 `[JSONRPCResponse]` 解码分支。
+// 설계 판단:
+// - params / result는 임의의 JSON이며, 서드파티 AnyCodable을 들이지 않도록 이 파일의 `JSONValue`로 표현합니다.
+// - id는 규격에 따라 int / string / null을 허용합니다. 이 클라이언트는 int만 직접 사용하지만 string/null도 해석할 수 있습니다.
+// - batch 호출은 구분하지 않습니다(아직 필요하지 않음). 지원이 필요해지면 `[JSONRPCResponse]` 디코딩 분기를 추가하면 됩니다.
 
 public enum JSONRPC {
     public static let version = "2.0"
@@ -13,7 +13,7 @@ public enum JSONRPC {
 
 // MARK: - JSONValue
 
-/// 任意 JSON 值。
+/// 임의의 JSON 값입니다.
 public enum JSONValue: Equatable, Sendable {
     case null
     case bool(Bool)
@@ -29,7 +29,7 @@ extension JSONValue: Codable {
         let c = try decoder.singleValueContainer()
         if c.decodeNil() { self = .null; return }
         if let b = try? c.decode(Bool.self) { self = .bool(b); return }
-        // Int 先于 Double：纯整数解出来是 .int。
+        // Int을 Double보다 먼저 시도합니다. 순수한 정수는 .int로 해석됩니다.
         if let i = try? c.decode(Int.self) { self = .int(i); return }
         if let d = try? c.decode(Double.self) { self = .double(d); return }
         if let s = try? c.decode(String.self) { self = .string(s); return }
@@ -55,13 +55,13 @@ extension JSONValue: Codable {
 }
 
 public extension JSONValue {
-    /// 把任意 Encodable 转成 JSONValue（走一遍 JSONEncoder/Decoder）。
+    /// 임의의 Encodable을 JSONValue로 변환합니다(JSONEncoder/Decoder를 한 번 거칩니다).
     static func encode<T: Encodable>(_ value: T) throws -> JSONValue {
         let data = try JSONEncoder().encode(value)
         return try JSONDecoder().decode(JSONValue.self, from: data)
     }
 
-    /// 把 JSONValue 解成具体类型。
+    /// JSONValue를 구체적인 타입으로 디코딩합니다.
     func decode<T: Decodable>(_ type: T.Type) throws -> T {
         let data = try JSONEncoder().encode(self)
         return try JSONDecoder().decode(type, from: data)
@@ -70,7 +70,7 @@ public extension JSONValue {
 
 // MARK: - ID
 
-/// JSON-RPC id：规范允许 Number / String / Null。
+/// JSON-RPC id입니다. 규격에서 Number / String / Null을 허용합니다.
 public enum JSONRPCID: Hashable, Sendable {
     case int(Int)
     case string(String)
@@ -100,7 +100,7 @@ extension JSONRPCID: Codable {
 
 // MARK: - Request / Notification
 
-/// 出站请求；`id == nil` 代表 Notification（按规范连 `id` 字段都不编码）。
+/// 발신 요청입니다. `id == nil`이면 Notification을 뜻하며, 규격에 따라 `id` 필드 자체를 인코딩하지 않습니다.
 public struct JSONRPCRequest: Encodable, Sendable {
     public let jsonrpc: String
     public let method: String
@@ -149,7 +149,7 @@ public struct JSONRPCError: Codable, Sendable, Error {
 }
 
 public extension JSONRPCError {
-    // 规范保留错误码。-32000..-32099 留给实现自定义。
+    // 규격에서 예약한 오류 코드입니다. -32000..-32099는 구현별 사용자 정의용으로 남겨져 있습니다.
     static let parseError      = -32700
     static let invalidRequest  = -32600
     static let methodNotFound  = -32601
@@ -157,17 +157,17 @@ public extension JSONRPCError {
     static let internalError   = -32603
 }
 
-// MARK: - 客户端侧错误
+// MARK: - 클라이언트 측 오류
 
 public enum PluginClientError: Error, Sendable {
-    /// 子进程未启动 / 已退出。
+    /// 자식 프로세스가 시작되지 않았거나 이미 종료되었습니다.
     case notRunning
-    /// 子进程意外退出，附终止码。
+    /// 자식 프로세스가 예기치 않게 종료되었으며, 종료 코드가 함께 전달됩니다.
     case processTerminated(Int32)
-    /// 响应 id 与所有 pending 都对不上。
+    /// 응답 id가 대기 중인 어떤 요청과도 일치하지 않습니다.
     case unknownResponseID(JSONRPCID?)
-    /// 单次 call 等待超时。
+    /// call 한 건의 대기 시간이 초과되었습니다.
     case timeout
-    /// 解码失败。
+    /// 디코딩에 실패했습니다.
     case decodingFailed(String)
 }

@@ -1,16 +1,16 @@
 import AhaKeyPluginKit
 import Foundation
 
-// AhaKey Plugin demo executable —— 把 `AhaKeyPluginKit` 当 SDK 走一遍 manager 流程：
-//   1. 扫描 `~/Library/Application Support/AhaKeyConfig/plugins/`
-//      （或环境变量 `AHAKEY_PLUGINS_DIR` 指定的目录）
-//   2. 按 manifest 拉起每个插件 + 握手
-//   3. 列出加载结果
-//   4. 停一会儿（让插件有机会反向调用 host）
-//   5. 全部 shutdown
+// AhaKey Plugin 데모 실행 파일입니다. `AhaKeyPluginKit`을 SDK처럼 써서 manager 흐름을 한 번 훑습니다.
+//   1. `~/Library/Application Support/AhaKeyConfig/plugins/`를 스캔
+//      (또는 환경 변수 `AHAKEY_PLUGINS_DIR`로 지정한 디렉터리)
+//   2. 매니페스트에 따라 각 플러그인을 시작하고 핸드셰이크 수행
+//   3. 로드 결과 나열
+//   4. 잠시 대기(플러그인이 host를 역방향으로 호출할 기회를 줌)
+//   5. 전부 shutdown
 //
-// 真实主 app 直接 `import AhaKeyPluginKit` 使用 `PluginManager`，不依赖这个 executable。
-// 这里只是给 `swift run Plugin` 一个能跑的入口，便于本地验证骨架。
+// 실제 메인 앱은 `import AhaKeyPluginKit`으로 `PluginManager`를 바로 사용하며, 이 실행 파일에 의존하지 않습니다.
+// 여기서는 `swift run Plugin`으로 실행할 수 있는 진입점을 제공해 로컬에서 골격을 검증하기 쉽게 할 뿐입니다.
 
 @main
 struct PluginDemoMain {
@@ -40,7 +40,7 @@ struct PluginDemoMain {
             }
         }
 
-        // 给插件 1 秒做反向 RPC 之类的事，再 shutdown。
+        // 플러그인이 역방향 RPC 등을 할 수 있도록 1초를 준 뒤 shutdown 합니다.
         try? await Task.sleep(nanoseconds: 1_000_000_000)
         await manager.unloadAll()
     }

@@ -1,9 +1,9 @@
 import Foundation
 
-/// AhaKey-X1 BLE 协议编解码
+/// AhaKey-X1 BLE 프로토콜 인코딩/디코딩
 ///
-/// 帧格式: AA BB [cmd:1] [data:N] CC DD
-/// 原厂代码: build_device_frame(cmd, data) = FRAME_HEAD + bytes([cmd]) + data + FRAME_TAIL
+/// 프레임 형식: AA BB [cmd:1] [data:N] CC DD
+/// 원본 코드: build_device_frame(cmd, data) = FRAME_HEAD + bytes([cmd]) + data + FRAME_TAIL
 enum AhaKeyCommand {
     static let header: [UInt8] = [0xAA, 0xBB]
     static let trailer: [UInt8] = [0xCC, 0xDD]
@@ -14,15 +14,15 @@ enum AhaKeyCommand {
     static let oledModeCount = 4
     static let oledMaxFramesPerMode = 70
     static let oledMaxFrames = oledMaxFramesPerMode
-    /// 用户选择的 GIF 源文件大小上限（避免过大文件拖慢解码与 BLE 上传）。
+    /// 사용자가 선택한 GIF 원본 파일 크기 상한(파일이 너무 크면 디코딩과 BLE 업로드가 느려진다).
     static let oledMaxSourceFileBytes = 2 * 1024 * 1024 // 2 MB
-    /// 固件端要求每个 prepareWrite 的 address 必须 4096 字节对齐（flash 扇区大小）。
-    /// 原厂 Python 客户端也用 4096 作为写入分块大小，一次 prepareWrite 刚好擦写一个扇区。
+    /// 펌웨어는 각 prepareWrite의 address가 반드시 4096바이트로 정렬되기를 요구한다(플래시 섹터 크기).
+    /// 원본 Python 클라이언트도 4096을 쓰기 청크 크기로 사용하며, prepareWrite 한 번이 정확히 한 섹터를 지우고 쓴다.
     static let oledChunkSize = 4096
-    /// BLE data 特征单次 writeValue 的软上限（与固件接收 FIFO 匹配，不走协商 MTU）。
+    /// BLE data 특성의 writeValue 1회 소프트 상한(펌웨어 수신 FIFO에 맞추며, 협상된 MTU는 쓰지 않는다).
     static let oledPacketSize = 180
 
-    // 设备命令 (DeviceCmd)
+    // 기기 명령 (DeviceCmd)
     static let cmdChangeName: UInt8 = 0x01
     static let cmdChangeAppearance: UInt8 = 0x02
     static let cmdSaveConfig: UInt8 = 0x04
@@ -31,75 +31,75 @@ enum AhaKeyCommand {
     static let cmdWriteResult: UInt8 = 0x81
     static let cmdUpdatePic: UInt8 = 0x82
     static let cmdReadPicState: UInt8 = 0x83
-    static let cmdUpdateState: UInt8 = 0x90  // IDE 状态 → LED 变色
-    static let cmdPreviewLightEffect: UInt8 = 0x91 // 直接预览灯效，不保存配置
-    static let cmdSetLightMapping: UInt8 = 0x84  // per-mode per-state LED 映射
-    static let cmdSetBrightness: UInt8 = 0x85    // 全局 WS2812 亮度 1-100
-    static let cmdSetWorkMode: UInt8 = 0x92      // 远程切换工作模式 0-3
+    static let cmdUpdateState: UInt8 = 0x90  // IDE 상태 → LED 색 변경
+    static let cmdPreviewLightEffect: UInt8 = 0x91 // 조명 효과 바로 미리보기, 설정은 저장하지 않음
+    static let cmdSetLightMapping: UInt8 = 0x84  // per-mode per-state LED 매핑
+    static let cmdSetBrightness: UInt8 = 0x85    // 전역 WS2812 밝기 1-100
+    static let cmdSetWorkMode: UInt8 = 0x92      // 작업 모드 0-3 원격 전환
 
     static func oledStartIndex(forMode mode: UInt8) -> UInt16 {
         UInt16(oledFactoryReservedSlots + Int(min(3, mode)) * oledMaxFramesPerMode)
     }
 
-    // 按键子类型 (KeySubType)
+    // 키 서브타입 (KeySubType)
     static let subShortcut: UInt8 = 0x73
     static let subMacro: UInt8 = 0x74
     static let subDescription: UInt8 = 0x75
 
-    /// 设备状态查询 → AA BB 00 CC DD
+    /// 기기 상태 조회 → AA BB 00 CC DD
     static func queryDeviceStatus() -> Data {
         Data(header + [0x00] + trailer)
     }
 
-    /// 保存配置到设备 Flash → AA BB 04 CC DD
+    /// 기기 Flash에 설정 저장 → AA BB 04 CC DD
     static func saveConfig() -> Data {
         Data(header + [cmdSaveConfig] + trailer)
     }
 
-    /// 键码写入 → AA BB 73 73 [mode] [key_index] [hid_codes...] CC DD
+    /// 키 코드 쓰기 → AA BB 73 73 [mode] [key_index] [hid_codes...] CC DD
     /// - Parameters:
-    ///   - mode: 工作模式 0-3
+    ///   - mode: 작업 모드 0-3
     ///   - keyIndex: 0=Key1, 1=Key2, 2=Key3, 3=Key4
-    ///   - hidCodes: HID Usage ID 数组（修饰键在前，普通键在后，最多 98 字节）
+    ///   - hidCodes: HID Usage ID 배열(수정자 키가 앞, 일반 키가 뒤, 최대 98바이트)
     static func setKeyMapping(mode: UInt8 = 0, keyIndex: UInt8, hidCodes: [UInt8]) -> Data {
         let payload: [UInt8] = [subShortcut, mode, keyIndex] + hidCodes
         return Data(header + [cmdUpdateCustomKey] + payload + trailer)
     }
 
-    /// 描述写入 → AA BB 73 75 [mode] [key_index] [utf8...] CC DD
+    /// 설명 쓰기 → AA BB 73 75 [mode] [key_index] [utf8...] CC DD
     /// - Parameters:
-    ///   - mode: 工作模式 0-3
+    ///   - mode: 작업 모드 0-3
     ///   - keyIndex: 0=Key1, 1=Key2, 2=Key3, 3=Key4
-    ///   - text: 显示在 LCD 上的按键描述（最多 20 字节 ASCII）
+    ///   - text: LCD에 표시되는 키 설명(최대 20바이트 ASCII)
     static func setKeyDescription(mode: UInt8 = 0, keyIndex: UInt8, text: String) -> Data {
         let textBytes = Array(text.sanitizedASCII(maxLength: 20).utf8)
         let payload: [UInt8] = [subDescription, mode, keyIndex] + textBytes
         return Data(header + [cmdUpdateCustomKey] + payload + trailer)
     }
 
-    /// 宏写入 → AA BB 73 74 [mode] [key_index] [action, param, ...] CC DD
+    /// 매크로 쓰기 → AA BB 73 74 [mode] [key_index] [action, param, ...] CC DD
     static func setKeyMacro(mode: UInt8 = 0, keyIndex: UInt8, macroData: [UInt8]) -> Data {
         let payload: [UInt8] = [subMacro, mode, keyIndex] + macroData
         return Data(header + [cmdUpdateCustomKey] + payload + trailer)
     }
 
-    /// 修改设备名称 → AA BB 01 [utf8...] CC DD
+    /// 기기 이름 변경 → AA BB 01 [utf8...] CC DD
     static func changeName(_ name: String) -> Data {
         let nameBytes = Array(name.utf8.prefix(21))
         return Data(header + [cmdChangeName] + nameBytes + trailer)
     }
 
-    /// 修改 BLE Appearance → AA BB 02 [appearance] CC DD
+    /// BLE Appearance 변경 → AA BB 02 [appearance] CC DD
     static func changeAppearance(_ value: UInt8) -> Data {
         Data(header + [cmdChangeAppearance, value] + trailer)
     }
 
-    /// 读取图片状态 → AA BB 83 [mode] CC DD
+    /// 이미지 상태 읽기 → AA BB 83 [mode] CC DD
     static func readPicState(mode: UInt8) -> Data {
         Data(header + [cmdReadPicState, mode] + trailer)
     }
 
-    /// 预备写入大块数据 → AA BB 80 [flag:1] [chunk_len:2 LE] [address:4 LE] CC DD
+    /// 대용량 데이터 쓰기 준비 → AA BB 80 [flag:1] [chunk_len:2 LE] [address:4 LE] CC DD
     static func prepareWrite(flag: UInt8 = 0x00, chunkLength: Int, address: UInt32) -> Data {
         let payload: [UInt8] = [
             flag,
@@ -113,7 +113,7 @@ enum AhaKeyCommand {
         return Data(header + [cmdPrepareWrite] + payload + trailer)
     }
 
-    /// 更新 LCD 动画参数 → AA BB 82 [mode] [start_index:2 LE] [frame_count:2 LE] [time_delay:2 LE] CC DD
+    /// LCD 애니메이션 파라미터 갱신 → AA BB 82 [mode] [start_index:2 LE] [frame_count:2 LE] [time_delay:2 LE] CC DD
     static func updatePicture(mode: UInt8, startIndex: UInt16, frameCount: UInt16, timeDelayMs: UInt16) -> Data {
         let payload: [UInt8] = [
             mode,
@@ -127,60 +127,60 @@ enum AhaKeyCommand {
         return Data(header + [cmdUpdatePic] + payload + trailer)
     }
 
-    /// IDE 状态同步 → AA BB 90 [state] CC DD
-    /// 驱动键盘 LED 变色，反映 Claude/Cursor 当前状态
+    /// IDE 상태 동기화 → AA BB 90 [state] CC DD
+    /// 키보드 LED 색을 바꿔 Claude/Cursor의 현재 상태를 반영한다
     static func updateState(_ state: IDEState) -> Data {
         Data(header + [cmdUpdateState, state.rawValue] + trailer)
     }
 
-    /// per-mode per-state LED 灯效映射 → AA BB 84 [mode] [state0_light]...[state8_light] CC DD
+    /// per-mode per-state LED 조명 효과 매핑 → AA BB 84 [mode] [state0_light]...[state8_light] CC DD
     static func setLightMapping(mode: UInt8, stateEffects: [UInt8]) -> Data {
         var effects = Array(stateEffects.prefix(9))
         while effects.count < 9 { effects.append(0) }
         return Data(header + [cmdSetLightMapping, mode] + effects + trailer)
     }
 
-    /// 全局 WS2812 亮度 → AA BB 85 [brightness] CC DD
+    /// 전역 WS2812 밝기 → AA BB 85 [brightness] CC DD
     static func setBrightness(_ value: UInt8) -> Data {
         let clamped = max(1, min(100, value))
         return Data(header + [cmdSetBrightness, clamped] + trailer)
     }
 
-    /// 直接预览某个灯效 → AA BB 91 [effect] CC DD
+    /// 특정 조명 효과 바로 미리보기 → AA BB 91 [effect] CC DD
     static func previewLightEffect(_ effect: UInt8) -> Data {
         Data(header + [cmdPreviewLightEffect, effect] + trailer)
     }
 
-    /// 切换工作模式 → AA BB 92 [mode] CC DD
+    /// 작업 모드 전환 → AA BB 92 [mode] CC DD
     static func setWorkMode(_ mode: UInt8) -> Data {
         Data(header + [cmdSetWorkMode, min(3, mode)] + trailer)
     }
 }
 
-/// IDE 状态枚举（原厂 ClaudeState）
-/// 发送到键盘后驱动 LED 颜色变化
+/// IDE 상태 열거형(원본 ClaudeState)
+/// 키보드로 전송하면 LED 색이 바뀐다
 enum IDEState: UInt8, CaseIterable, Codable, Identifiable {
-    case notification = 0        // 通知
-    case permissionRequest = 1   // 等待授权
-    case postToolUse = 2         // 工具执行完毕
-    case preToolUse = 3          // 工具执行中
-    case sessionStart = 4        // 会话开始
-    case stop = 5                // 已停止
-    case taskCompleted = 6       // 任务完成
-    case userPromptSubmit = 7    // 用户提交
-    case sessionEnd = 8          // 会话结束
+    case notification = 0        // 알림
+    case permissionRequest = 1   // 승인 대기
+    case postToolUse = 2         // 도구 실행 완료
+    case preToolUse = 3          // 도구 실행 중
+    case sessionStart = 4        // 세션 시작
+    case stop = 5                // 중지됨
+    case taskCompleted = 6       // 작업 완료
+    case userPromptSubmit = 7    // 사용자 입력 제출
+    case sessionEnd = 8          // 세션 종료
 
     var label: String {
         switch self {
-        case .notification: return "0 通知"
-        case .permissionRequest: return "1 等待授权"
-        case .postToolUse: return "2 工具完毕"
-        case .preToolUse: return "3 工具执行"
-        case .sessionStart: return "4 会话开始"
-        case .stop: return "5 停止"
-        case .taskCompleted: return "6 任务完成"
-        case .userPromptSubmit: return "7 用户提交"
-        case .sessionEnd: return "8 会话结束"
+        case .notification: return "0 알림"
+        case .permissionRequest: return "1 승인 대기"
+        case .postToolUse: return "2 도구 완료"
+        case .preToolUse: return "3 도구 실행"
+        case .sessionStart: return "4 세션 시작"
+        case .stop: return "5 중지"
+        case .taskCompleted: return "6 작업 완료"
+        case .userPromptSubmit: return "7 사용자 제출"
+        case .sessionEnd: return "8 세션 종료"
         }
     }
 
@@ -200,20 +200,20 @@ enum IDEState: UInt8, CaseIterable, Codable, Identifiable {
 
     var shortLabel: String {
         switch self {
-        case .notification: return "通知"
-        case .permissionRequest: return "等待授权"
-        case .postToolUse: return "工具完毕"
-        case .preToolUse: return "工具执行"
-        case .sessionStart: return "会话开始"
-        case .stop: return "停止"
-        case .taskCompleted: return "任务完成"
-        case .userPromptSubmit: return "用户提交"
-        case .sessionEnd: return "会话结束"
+        case .notification: return "알림"
+        case .permissionRequest: return "승인 대기"
+        case .postToolUse: return "도구 완료"
+        case .preToolUse: return "도구 실행"
+        case .sessionStart: return "세션 시작"
+        case .stop: return "중지"
+        case .taskCompleted: return "작업 완료"
+        case .userPromptSubmit: return "사용자 제출"
+        case .sessionEnd: return "세션 종료"
         }
     }
 }
 
-/// 设备状态响应解析结果
+/// 기기 상태 응답 파싱 결과
 struct AhaKeyDeviceStatus {
     let battery: Int
     let signal: Int
@@ -233,7 +233,7 @@ struct AhaKeyPictureState {
     let allModeMaxPic: Int
 }
 
-/// AhaKey 协议响应解析器
+/// AhaKey 프로토콜 응답 파서
 enum AhaKeyResponseParser {
     static func parseCommandResponse(_ data: Data) -> (cmd: UInt8, status: UInt8, payload: Data)? {
         guard isProtocolFrame(data), data.count >= 6 else { return nil }
@@ -243,9 +243,9 @@ enum AhaKeyResponseParser {
         return (cmd, status, payload)
     }
 
-    /// 尝试从 notify 数据中解析设备状态
-    /// 实际格式: AA BB [cmd_echo] [battery] [signal] [fw_main] [fw_sub] [work] [light] [switch] ... CC DD
-    /// 第一个 payload 字节是命令回显（0x00），真实数据从第二字节开始
+    /// notify 데이터에서 기기 상태를 파싱해 본다
+    /// 실제 형식: AA BB [cmd_echo] [battery] [signal] [fw_main] [fw_sub] [work] [light] [switch] ... CC DD
+    /// 첫 payload 바이트는 명령 에코(0x00)이며, 실제 데이터는 두 번째 바이트부터 시작한다
     static func parseDeviceStatus(_ data: Data) -> AhaKeyDeviceStatus? {
         // header(2) + cmd_echo(1) + 7 bytes status + trailer(2) = 12 bytes minimum
         guard data.count >= 12,
@@ -290,7 +290,7 @@ enum AhaKeyResponseParser {
         )
     }
 
-    /// 检查是否是 AhaKey 协议帧
+    /// AhaKey 프로토콜 프레임인지 확인
     static func isProtocolFrame(_ data: Data) -> Bool {
         data.count >= 4
             && data[0] == 0xAA && data[1] == 0xBB
@@ -298,9 +298,9 @@ enum AhaKeyResponseParser {
     }
 }
 
-/// 常用 HID Usage ID
+/// 자주 쓰는 HID Usage ID
 enum HIDUsage {
-    // 修饰键
+    // 수정자 키
     static let leftControl: UInt8 = 0xE0
     static let leftShift: UInt8 = 0xE1
     static let leftAlt: UInt8 = 0xE2
@@ -310,7 +310,7 @@ enum HIDUsage {
     static let rightAlt: UInt8 = 0xE6
     static let rightGUI: UInt8 = 0xE7
 
-    // 功能键
+    // 기능 키
     static let f1: UInt8 = 0x3A
     static let f2: UInt8 = 0x3B
     static let f3: UInt8 = 0x3C
@@ -332,7 +332,7 @@ enum HIDUsage {
     static let f19: UInt8 = 0x6E
     static let f20: UInt8 = 0x6F
 
-    // 基础键
+    // 기본 키
     static let enter: UInt8 = 0x28
     static let escape: UInt8 = 0x29
     static let backspace: UInt8 = 0x2A
@@ -373,21 +373,21 @@ enum HIDUsage {
     static let keypad0: UInt8 = 0x62
     static let keypadPeriod: UInt8 = 0x63
 
-    // 方向键
+    // 방향 키
     static let rightArrow: UInt8 = 0x4F
     static let leftArrow: UInt8 = 0x50
     static let downArrow: UInt8 = 0x51
     static let upArrow: UInt8 = 0x52
 
-    /// 所有可用的键码选项（用于 UI 选择器）
+    /// 사용 가능한 모든 키 코드 옵션(UI 선택기용)
     static let allOptions: [(name: String, code: UInt8)] = [
-        // 功能键
+        // 기능 키
         ("F1", f1), ("F2", f2), ("F3", f3), ("F4", f4),
         ("F5", f5), ("F6", f6), ("F7", f7), ("F8", f8),
         ("F9", f9), ("F10", f10), ("F11", f11), ("F12", f12),
         ("F13", f13), ("F14", f14), ("F15", f15), ("F16", f16),
         ("F17", f17), ("F18", f18), ("F19", f19), ("F20", f20),
-        // 基础键
+        // 기본 키
         ("Enter", enter), ("Escape", escape), ("Backspace", backspace),
         ("Tab", tab), ("Space", space), ("CapsLock", capsLock),
         ("Delete", deleteForward), ("Insert", insert), ("Home", home),
@@ -395,9 +395,9 @@ enum HIDUsage {
         ("-", minus), ("=", equal), ("[", leftBracket), ("]", rightBracket),
         ("\\", backslash), (";", semicolon), ("'", quote), ("`", grave),
         (",", comma), (".", period), ("/", slash),
-        // 方向键
+        // 방향 키
         ("→", rightArrow), ("←", leftArrow), ("↓", downArrow), ("↑", upArrow),
-        // 字母键
+        // 알파벳 키
         ("A", 0x04), ("B", 0x05), ("C", 0x06), ("D", 0x07),
         ("E", 0x08), ("F", 0x09), ("G", 0x0A), ("H", 0x0B),
         ("I", 0x0C), ("J", 0x0D), ("K", 0x0E), ("L", 0x0F),
@@ -405,16 +405,16 @@ enum HIDUsage {
         ("Q", 0x14), ("R", 0x15), ("S", 0x16), ("T", 0x17),
         ("U", 0x18), ("V", 0x19), ("W", 0x1A), ("X", 0x1B),
         ("Y", 0x1C), ("Z", 0x1D),
-        // 数字键
+        // 숫자 키
         ("1", 0x1E), ("2", 0x1F), ("3", 0x20), ("4", 0x21),
         ("5", 0x22), ("6", 0x23), ("7", 0x24), ("8", 0x25),
         ("9", 0x26), ("0", 0x27),
-        // 修饰键
+        // 수정자 키
         ("Left Ctrl", leftControl), ("Left Shift", leftShift),
         ("Left Alt", leftAlt), ("Left Cmd", leftGUI),
         ("Right Ctrl", rightControl), ("Right Shift", rightShift),
         ("Right Alt", rightAlt), ("Right Cmd", rightGUI),
-        // 小键盘
+        // 숫자 키패드
         ("Keypad /", keypadSlash), ("Keypad *", keypadAsterisk),
         ("Keypad -", keypadMinus), ("Keypad +", keypadPlus),
         ("Keypad Enter", keypadEnter), ("Keypad 0", keypad0),
@@ -426,7 +426,7 @@ enum HIDUsage {
 
     static let primaryOptions = allOptions
 
-    /// 根据键码查找名称
+    /// 키 코드로 이름 찾기
     static func name(for code: UInt8) -> String {
         allOptions.first { $0.code == code }?.name ?? String(format: "0x%02X", code)
     }
@@ -547,7 +547,7 @@ enum HIDUsage {
 }
 
 extension String {
-    /// 设备 LCD 描述只稳定支持 ASCII；非 ASCII 字符会在设备端变成乱码。
+    /// 기기 LCD 설명은 ASCII만 안정적으로 지원하며, ASCII가 아닌 문자는 기기에서 깨져 보인다.
     func sanitizedASCII(maxLength: Int) -> String {
         var result = String()
         result.reserveCapacity(min(maxLength, count))

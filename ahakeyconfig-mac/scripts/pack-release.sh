@@ -1,17 +1,17 @@
 #!/bin/zsh
-# 可分发安装包（Developer ID + 公证）：对内测试与对外发版用同一流程即可。
-# 需要「快速本地调试、不跑公证」时可直接：zsh scripts/build.sh
+# 배포 가능한 설치 패키지(Developer ID + 공증): 내부 테스트와 외부 릴리스에 동일한 절차를 사용한다.
+# 「빠른 로컬 디버그, 공증 생략」이 필요하면 바로: zsh scripts/build.sh
 #
-# 内部调用 package_dmg.sh、build.sh。
+# 내부적으로 package_dmg.sh, build.sh를 호출한다.
 #
-# 产出：dist/AhaKey Studio.app
-#       dist/AhaKey-Studio-macOS-prod-YYYYMMDDHHmmss.dmg（可用 DMG_BASENAME 覆盖）
+# 산출물: dist/AhaKey Studio.app
+#         dist/AhaKey-Studio-macOS-prod-YYYYMMDDHHmmss.dmg (DMG_BASENAME으로 덮어쓸 수 있음)
 #
-# 用法：
+# 사용법:
 #   zsh scripts/pack-release.sh
 #   zsh /path/to/ahakeyconfig/scripts/pack-release.sh
 #
-# 可选环境变量：NOTARY_PROFILE、SIGNING_IDENTITY、SIGNING_IDENTITY_HINT、OUTPUT_DIR、DMG_BASENAME
+# 선택 환경 변수: NOTARY_PROFILE, SIGNING_IDENTITY, SIGNING_IDENTITY_HINT, OUTPUT_DIR, DMG_BASENAME
 
 set -euo pipefail
 

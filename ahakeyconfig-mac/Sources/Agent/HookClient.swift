@@ -1,6 +1,6 @@
 import Foundation
 
-/// 仅负责事件路由；各 IDE 的具体逻辑已拆到独立 handler，避免互相影响。
+/// 이벤트 라우팅만 담당한다. IDE 별 구체적인 로직은 별도 handler 로 분리해 서로 영향을 주지 않도록 했다.
 enum HookClient {
     private enum EventRoute {
         case sharedState(UInt8)
@@ -18,7 +18,7 @@ enum HookClient {
         "PreToolUse": .sharedState(3),
         "SessionStart": .sharedState(4),
         "Stop": .sharedState(5),
-        // SubagentStop：Claude Code 将原 Stop 拆分后，手动终止任务时触发此事件而非 Stop
+        // SubagentStop: Claude Code 가 기존 Stop 을 분리한 뒤로는, 작업을 수동으로 종료하면 Stop 대신 이 이벤트가 발생한다
         "SubagentStop": .sharedState(5),
         "TaskCompleted": .sharedState(6),
         "UserPromptSubmit": .sharedState(7),
@@ -52,7 +52,7 @@ enum HookClient {
     static func run(event: String) -> Int32 {
         signal(SIGPIPE, SIG_IGN)
         
-        // 调试日志：记录所有收到的事件
+        // 디버그 로그: 수신한 모든 이벤트를 기록한다
         FileHandle.standardError.write(Data("[ahakey-hook] DEBUG: received event: '\(event)'\n".utf8))
         
         guard let route = eventMap[event] else {

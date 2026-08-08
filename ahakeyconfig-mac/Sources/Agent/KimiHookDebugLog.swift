@@ -1,10 +1,10 @@
 import Foundation
 
-/// Kimi PreToolUse 等设备侧调试日志：stderr（终端里 kimi 会看到）+ 单行 JSON 写入 **当前工作目录** 下的 `kimi-hook-debug.log`。
+/// Kimi PreToolUse 등 기기 측 디버그 로그: stderr(터미널에서 kimi 가 보게 된다) + 한 줄 JSON 을 **현재 작업 디렉터리**의 `kimi-hook-debug.log` 에 기록한다.
 enum KimiHookDebugLog {
     private static let logFileName = "kimi-hook-debug.log"
 
-    /// 供 Hook stderr 告知用户到哪看完整 JSON 行日志（绝对路径）。
+    /// 훅의 stderr 에서 전체 JSON 줄 로그를 어디서 볼 수 있는지 사용자에게 알려 주기 위한 절대 경로.
     static var logPath: String { debugFileURL.path }
 
     private static var debugFileURL: URL {
@@ -21,13 +21,13 @@ enum KimiHookDebugLog {
         return f
     }()
 
-    /// stderr 单行，前缀统一便于 `grep`，kimi-cli 将把 hook 工具的 stderr 打出来（视版本而定）。
+    /// stderr 한 줄. 접두어를 통일해 `grep` 하기 쉽게 했고, kimi-cli 는 훅 도구의 stderr 를 그대로 출력한다(버전에 따라 다름).
     static func stderrLine(_ msg: String) {
         let line = "[aha-kimi] \(msg)\n"
         FileHandle.standardError.write(Data(line.utf8))
     }
 
-    /// 结构化追加到磁盘（与 `permission-request.log` 等 App diagnostics 分离，避免路径含空格时难找）。
+    /// 구조화된 형태로 디스크에 덧붙인다(`permission-request.log` 같은 App diagnostics 와 분리해, 경로에 공백이 있어 찾기 어려운 상황을 피한다).
     static func append(event: String, details: [String: Any]) {
         let cwd = FileManager.default.currentDirectoryPath
         var payload: [String: Any] = [
@@ -49,7 +49,7 @@ enum KimiHookDebugLog {
         let url = debugFileURL
         let fm = FileManager.default
         do {
-            // 日志在 cwd 下，目录应已存在；若为空回退到 home，则保证父目录存在
+            // 로그는 cwd 아래에 있으므로 디렉터리는 이미 존재해야 한다. cwd 가 비어 home 으로 되돌아간 경우에는 상위 디렉터리 존재를 보장한다
             if FileManager.default.currentDirectoryPath.isEmpty {
                 try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             }

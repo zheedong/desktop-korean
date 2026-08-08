@@ -1,17 +1,17 @@
 import Foundation
 
-/// 检测应用签名变化并处理权限问题
-/// 
-/// 当应用签名改变时（如重新安装、更换证书），macOS 会将其视为新应用，
-/// 但旧的 TCC 授权记录仍然存在。由于麦克风权限在系统设置中没有手动添加的 '+' 号，
-/// 用户无法手动添加新签名的应用。
-/// 
-/// 此工具检测签名变化，并提供重置麦克风权限的功能。
+/// 앱 서명 변경을 감지하고 권한 문제를 처리한다.
+///
+/// 앱 서명이 바뀌면(재설치, 인증서 교체 등) macOS는 이를 새로운 앱으로 간주하지만,
+/// 기존 TCC 승인 기록은 그대로 남아 있다. 마이크 권한은 시스템 설정에서 수동으로 추가할 수 있는
+/// '+' 버튼이 없기 때문에, 사용자가 새로 서명된 앱을 직접 추가할 수 없다.
+///
+/// 이 유틸리티는 서명 변경을 감지하고 마이크 권한을 초기화하는 기능을 제공한다.
 enum PermissionSignatureChecker {
     
     private static let lastSignatureKey = "AhaKey_LastSignatureHash"
     
-    /// 获取当前应用的签名哈希
+    /// 현재 앱의 서명 해시를 가져온다.
     private static func currentSignatureHash() -> String? {
         let bundlePath = Bundle.main.bundlePath
         let task = Process()
@@ -28,7 +28,7 @@ enum PermissionSignatureChecker {
             
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {
-                // 提取签名信息（cdhash）
+                // 서명 정보(cdhash) 추출
                 let lines = output.components(separatedBy: .newlines)
                 for line in lines {
                     if let range = line.range(of: "cdhash=") {
@@ -43,29 +43,29 @@ enum PermissionSignatureChecker {
         return nil
     }
     
-    /// 检查签名是否发生变化
+    /// 서명이 변경되었는지 확인한다.
     static func hasSignatureChanged() -> Bool {
         guard let current = currentSignatureHash() else { return false }
         let last = UserDefaults.standard.string(forKey: lastSignatureKey)
         return last != current
     }
     
-    /// 保存当前签名
+    /// 현재 서명을 저장한다.
     static func saveCurrentSignature() {
         if let current = currentSignatureHash() {
             UserDefaults.standard.set(current, forKey: lastSignatureKey)
         }
     }
     
-    /// 重置麦克风权限（需要 sudo）
+    /// 마이크 권한을 초기화한다(sudo 필요).
     /// - Parameter completion: (success, message)
     static func resetMicrophonePermission(completion: @escaping (Bool, String) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             let bundleId = Bundle.main.bundleIdentifier ?? "lab.jawa.ahakeyconfig"
             
-            print("[PermissionSignatureChecker] 开始重置麦克风权限, bundleId: \(bundleId)")
-            
-            // 先尝试普通模式重置
+            print("[PermissionSignatureChecker] 마이크 권한 초기화 시작, bundleId: \(bundleId)")
+
+            // 먼저 일반 모드로 초기화를 시도한다.
             let task = Process()
             task.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
             task.arguments = ["reset", "Microphone", bundleId]
@@ -81,14 +81,14 @@ enum PermissionSignatureChecker {
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 let output = String(data: data, encoding: .utf8) ?? ""
                 
-                print("[PermissionSignatureChecker] 普通模式 tccutil 返回: \(task.terminationStatus), 输出: \(output)")
-                
+                print("[PermissionSignatureChecker] 일반 모드 tccutil 반환: \(task.terminationStatus), 출력: \(output)")
+
                 if task.terminationStatus == 0 {
-                    completion(true, "麦克风权限已重置")
+                    completion(true, "마이크 권한이 초기화되었습니다.")
                     return
                 }
-                
-                // 如果普通模式失败，尝试用 sudo
+
+                // 일반 모드가 실패하면 sudo로 다시 시도한다.
                 let sudoTask = Process()
                 sudoTask.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
                 sudoTask.arguments = ["/usr/bin/tccutil", "reset", "Microphone", bundleId]
@@ -104,26 +104,26 @@ enum PermissionSignatureChecker {
                     let sudoData = sudoPipe.fileHandleForReading.readDataToEndOfFile()
                     let sudoOutput = String(data: sudoData, encoding: .utf8) ?? ""
                     
-                    print("[PermissionSignatureChecker] sudo 模式 tccutil 返回: \(sudoTask.terminationStatus), 输出: \(sudoOutput)")
-                    
+                    print("[PermissionSignatureChecker] sudo 모드 tccutil 반환: \(sudoTask.terminationStatus), 출력: \(sudoOutput)")
+
                     if sudoTask.terminationStatus == 0 {
-                        completion(true, "麦克风权限已重置（使用 sudo）")
+                        completion(true, "마이크 권한이 초기화되었습니다(sudo 사용).")
                     } else {
-                        completion(false, "重置失败:\n普通模式: \(output)\nsudo模式: \(sudoOutput)")
+                        completion(false, "초기화 실패:\n일반 모드: \(output)\nsudo 모드: \(sudoOutput)")
                     }
                 } catch {
-                    print("[PermissionSignatureChecker] sudo 执行失败: \(error)")
-                    completion(false, "sudo 执行失败: \(error.localizedDescription)")
+                    print("[PermissionSignatureChecker] sudo 실행 실패: \(error)")
+                    completion(false, "sudo 실행 실패: \(error.localizedDescription)")
                 }
             } catch {
-                print("[PermissionSignatureChecker] 执行失败: \(error)")
-                completion(false, "执行失败: \(error.localizedDescription)")
+                print("[PermissionSignatureChecker] 실행 실패: \(error)")
+                completion(false, "실행 실패: \(error.localizedDescription)")
             }
         }
     }
     
-    /// 检查并处理签名变化
-    /// - Returns: true 如果签名变化且需要处理
+    /// 서명 변경을 확인하고 처리한다.
+    /// - Returns: 서명이 변경되어 처리가 필요하면 true
     static func checkAndHandleSignatureChange() -> Bool {
         if hasSignatureChanged() {
             saveCurrentSignature()
@@ -132,7 +132,7 @@ enum PermissionSignatureChecker {
         return false
     }
     
-    /// 检查签名变化并自动重置麦克风权限
+    /// 서명 변경을 확인하고 마이크 권한을 자동으로 초기화한다.
     static func checkAndResetOnSignatureChange(completion: @escaping (Bool) -> Void) {
         if hasSignatureChanged() {
             saveCurrentSignature()

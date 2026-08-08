@@ -1,21 +1,21 @@
 import Foundation
 
-// 在 PluginClient 之上包一层「宿主能力」：注册一组 `host/*` JSON-RPC method，
-// 让插件能调用宿主提供的服务。
+// PluginClient 위에 「호스트 기능」 계층을 덧씌웁니다. `host/*` JSON-RPC method 집합을 등록해
+// 플러그인이 호스트가 제공하는 서비스를 호출할 수 있게 합니다.
 //
-// 当前最小三件套：
-//   - host/getInfo          → 返回宿主 app 元信息（bundleID / version / build / platform）
-//   - host/log              → 插件把日志打到宿主 stderr
-//   - host/getSwitchState   → 通过 /tmp/ahakey.sock 问 daemon 拨杆状态（agent 没跑则返回 null）
+// 현재 최소 구성 세 가지:
+//   - host/getInfo          → 호스트 앱 메타 정보 반환(bundleID / version / build / platform)
+//   - host/log              → 플러그인이 로그를 호스트 stderr로 출력
+//   - host/getSwitchState   → /tmp/ahakey.sock을 통해 daemon에 스위치 상태를 조회(agent가 실행 중이 아니면 null 반환)
 //
-// 后续要加的（如 host/showNotification、host/openURL、host/storage/*）按相同方式接到
-// `registerDefaultHandlers` 即可。增加新方法时记得在 manifest 的权限白名单里同步声明。
+// 앞으로 추가할 항목(host/showNotification, host/openURL, host/storage/* 등)도 같은 방식으로
+// `registerDefaultHandlers`에 연결하면 됩니다. 새 메서드를 추가할 때는 매니페스트의 권한 허용 목록에도 함께 선언해야 합니다.
 
 public final class PluginHost: @unchecked Sendable {
     public let client: PluginClient
     public let appInfo: HostAppInfo
 
-    /// 该插件被允许调用的 `host/*` 方法集合；`nil` 表示不限制（仅用于 demo / 第一方）。
+    /// 해당 플러그인이 호출할 수 있는 `host/*` 메서드 집합입니다. `nil`이면 제한하지 않습니다(데모 / 자체 제작용으로만 사용).
     public let permissions: Set<String>?
 
     public init(
@@ -28,14 +28,14 @@ public final class PluginHost: @unchecked Sendable {
         self.permissions = permissions
     }
 
-    /// 宿主当前 expose 的全部 `host/*` 方法名 —— 用于 `plugin/initialize` 时告诉插件。
+    /// 호스트가 현재 노출하는 모든 `host/*` 메서드 이름입니다. `plugin/initialize` 시 플러그인에 알려 주는 데 사용합니다.
     public static let availableHostMethods: [String] = [
         "host/getInfo",
         "host/log",
         "host/getSwitchState",
     ]
 
-    /// 注册默认 `host/*` 方法集。请在 `client.start()` 之前调用。
+    /// 기본 `host/*` 메서드 집합을 등록합니다. `client.start()`보다 먼저 호출해야 합니다.
     public func registerDefaultHandlers() async {
         let appInfo = self.appInfo
 
@@ -57,7 +57,7 @@ public final class PluginHost: @unchecked Sendable {
         }
     }
 
-    /// 包一层权限检查后注册。不在 `permissions` 里的 method 会被 -32601 直接拒掉。
+    /// 권한 검사를 한 겹 씌워 등록합니다. `permissions`에 없는 method는 -32601로 바로 거부됩니다.
     private func register(
         _ method: String,
         _ handler: @escaping PluginClient.RequestHandler
@@ -91,7 +91,7 @@ public struct HostAppInfo: Codable, Sendable {
         self.platform = platform
     }
 
-    /// 从 `Bundle.main` 读；当宿主不是 app bundle（例如本 Plugin demo executable）时给保底值。
+    /// `Bundle.main`에서 읽습니다. 호스트가 앱 번들이 아닐 때(예: 이 Plugin 데모 실행 파일)는 기본값을 사용합니다.
     public static func current() -> HostAppInfo {
         let info = Bundle.main.infoDictionary ?? [:]
         return .init(
@@ -105,7 +105,7 @@ public struct HostAppInfo: Codable, Sendable {
 // MARK: - host/log
 
 enum HostLog {
-    /// 兼容两种 params 形态：
+    /// 다음 두 가지 params 형태를 모두 지원합니다.
     ///   - `{ "level": "info", "message": "..." }`
     ///   - `"plain string message"`
     static func write(params: JSONValue?) {
@@ -125,12 +125,12 @@ enum HostLog {
 
 // MARK: - host/getSwitchState
 
-/// 与 `Agent/HookClient.swift` 走同一套 `/tmp/ahakey.sock` 协议
-/// （`{"cmd":"permission","value":1}` → `{"switchState": Int, ...}`）。
-/// agent 没跑或 BLE 没连上时返回 nil。
+/// `Agent/HookClient.swift`와 동일한 `/tmp/ahakey.sock` 프로토콜을 사용합니다
+/// (`{"cmd":"permission","value":1}` → `{"switchState": Int, ...}`).
+/// agent가 실행 중이 아니거나 BLE가 연결되지 않았으면 nil을 반환합니다.
 ///
-/// 没把 socket 协议抽成共用 util，是因为 Agent target 与 AhaKeyPluginKit 暂不互相依赖；
-/// 后续若多处都要用，再抽 `AhaKeyAgentBridge` library。
+/// 소켓 프로토콜을 공용 유틸리티로 분리하지 않은 이유는 Agent 타깃과 AhaKeyPluginKit이 아직 서로 의존하지 않기 때문입니다.
+/// 앞으로 여러 곳에서 필요해지면 `AhaKeyAgentBridge` 라이브러리로 분리하면 됩니다.
 enum HostAgentBridge {
     static let socketPath = "/tmp/ahakey.sock"
     static let timeout: Double = 2.0

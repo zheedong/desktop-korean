@@ -1,9 +1,9 @@
 import Foundation
 
-/// 拨杆为 0 时，临时放宽 `~/.cursor/cli-config.json` 的 `permissions`（等效于不拦常见白名单项）；
-/// 非 0 时从首帧快照恢复，与 HookClient 的 `permission` 输出配合使用。
+/// 레버가 0 일 때 `~/.cursor/cli-config.json` 의 `permissions` 를 일시적으로 완화한다(흔한 허용 목록 항목을 막지 않는 것과 같다).
+/// 0 이 아니면 최초 시점의 스냅샷에서 복원하며, HookClient 의 `permission` 출력과 함께 사용한다.
 ///
-/// 说明：仅影响 Cursor 自行读取的全局/配置层；`switchState` 未读到（nil）时不会改文件。
+/// 참고: Cursor 가 스스로 읽는 전역/설정 계층에만 영향을 준다. `switchState` 를 읽지 못했을 때(nil)는 파일을 변경하지 않는다.
 enum CursorCliLeverSync {
     private static let cliName = "cli-config.json"
     private static var cliURL: URL {
@@ -19,14 +19,14 @@ enum CursorCliLeverSync {
             .appendingPathComponent(".ahakey_had_no_cli_config", isDirectory: false)
     }
 
-    /// 通配符与 Cursor 文档一致。另含显式 `Shell(cd)` / `Shell(swift)` 等：部分版本 Agent 的 TUI 在报
-    /// 「Not in allowlist: cd /path, swift …」时未把 `Shell(*)` 与复合命令行对齐，需首词/工具链单独写。
+    /// 와일드카드는 Cursor 문서와 동일하다. 여기에 `Shell(cd)` / `Shell(swift)` 처럼 명시적인 항목도 포함한다: 일부 버전의 에이전트 TUI 는
+    /// 「Not in allowlist: cd /path, swift …」를 표시할 때 `Shell(*)` 를 복합 명령줄과 맞추지 못하므로, 첫 단어/툴체인을 따로 적어야 한다.
     private static let relaxedAllow: [String] = [
         "Shell(*)", "Shell(cd)", "Shell(swift)", "Shell(bash)", "Shell(zsh)", "Shell(sh)",
         "Read(**/*)", "Write(**/*)", "WebFetch(*)", "Mcp(*:*)",
     ]
 
-    /// 在回写 `permission: allow|ask` 的 **之前** 调用，保证 Cursor 随后读配置时已是宽松/已恢复。
+    /// `permission: allow|ask` 를 기록하기 **전에** 호출해서, Cursor 가 이후 설정을 읽을 때 이미 완화/복원된 상태가 되도록 보장한다.
     static func apply(switchStateAuto: Bool) {
         if switchStateAuto {
             applyRelaxed()
@@ -46,12 +46,12 @@ enum CursorCliLeverSync {
                     if fm.fileExists(atPath: snapshotURL.path) { try? fm.removeItem(at: snapshotURL) }
                     try fm.copyItem(at: cliURL, to: snapshotURL)
                 } catch {
-                    fprintStderr("CursorCliLeverSync: 无法备份原 cli-config: \(error.localizedDescription)\n")
+                    fprintStderr("CursorCliLeverSync: 기존 cli-config 를 백업할 수 없습니다: \(error.localizedDescription)\n")
                 }
             } else {
                 do {
                     try Data().write(to: hadNoPriorCliMarker, options: .atomic)
-                } catch { /* 忽略 */ }
+                } catch { /* 무시 */ }
             }
         }
 
@@ -67,7 +67,7 @@ enum CursorCliLeverSync {
         root["permissions"] = perms
         root["approvalMode"] = "auto"
         if !writeJson(root, to: cliURL) {
-            fprintStderr("CursorCliLeverSync: 无法写回 \(cliURL.path)（仍返回 hook 的 permission）\n")
+            fprintStderr("CursorCliLeverSync: \(cliURL.path) 에 기록할 수 없습니다(훅의 permission 은 그대로 반환합니다)\n")
         }
     }
 
@@ -89,7 +89,7 @@ enum CursorCliLeverSync {
             try fm.copyItem(at: snapshotURL, to: cliURL)
             try fm.removeItem(at: snapshotURL)
         } catch {
-            fprintStderr("CursorCliLeverSync: 无法从快照恢复 cli-config: \(error.localizedDescription)\n")
+            fprintStderr("CursorCliLeverSync: 스냅샷에서 cli-config 를 복원할 수 없습니다: \(error.localizedDescription)\n")
         }
     }
 
@@ -122,9 +122,9 @@ enum CursorCliLeverSync {
         FileHandle.standardError.write(Data(s.utf8))
     }
 
-    // MARK: - 诊断（permission-request.log）
+    // MARK: - 진단(permission-request.log)
 
-    /// 写回/恢复后的 `~/.cursor/cli-config.json` 与拨杆同步相关旁路文件状态，供 `HookClient` 记日志。
+    /// 기록/복원 후의 `~/.cursor/cli-config.json` 및 레버 동기화 관련 보조 파일 상태를 `HookClient` 의 로그용으로 제공한다.
     static func diagnosticSnapshotForLog() -> [String: Any] {
         let fm = FileManager.default
         var d: [String: Any] = [

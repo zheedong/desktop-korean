@@ -90,6 +90,30 @@ enum HookSupport {
         }
     }
 
+    /// 공유 상태 파일(`current-ide-state.json`)에 기록된 레버 값. 지정한 시간 안에 갱신된 값만 유효로 본다.
+    ///
+    /// BLE 는 이 App 과 데몬 중 하나만 점유할 수 있고, 점유한 쪽이 이 파일을 갱신한다. 데몬이 점유하지 못한
+    /// 상태에서는 데몬이 기동 시점에 들고 있던 값을 계속 응답하므로, 파일 쪽이 최신이면 그것을 신뢰해야 한다.
+    static func liveStateSwitchState(maxAge: TimeInterval = 120) -> Int? {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/AhaKeyConfig/current-ide-state.json")
+        guard let data = try? Data(contentsOf: url),
+              let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let sw = intValue(obj["switchState"])
+        else { return nil }
+        // ts 가 없거나 오래된 값이면 키보드와 끊긴 뒤 남은 찌꺼기일 수 있으므로 쓰지 않는다.
+        guard let ts = obj["ts"] as? Double,
+              Date().timeIntervalSince1970 - ts <= maxAge
+        else { return nil }
+        return sw
+    }
+
+    /// 훅이 자동 승인 판단에 쓸 레버 값. 공유 상태 파일이 최신이면 그것을, 아니면 데몬 응답을 쓴다.
+    /// 둘 다 없으면 nil 을 돌려 호출부가 수동(ask)으로 넘기게 한다.
+    static func resolvedSwitchState(reply: [String: Any]?) -> Int? {
+        liveStateSwitchState() ?? intValue(reply?["switchState"])
+    }
+
     static func emitPermissionStderr(
         ide: String,
         hookName: String,
@@ -97,14 +121,14 @@ enum HookSupport {
         switchState: Int?
     ) {
         if switchState == nil, reply == nil {
-            let msg = "[ahakey-hook] \(ide) \(hookName): agent 无回包或 Unix socket 失败（/tmp/ahakey.sock 连不上/超时，超时 \(Int(permissionRequestTimeout))s）。"
-                + "请确认 LaunchAgent 里 ahakeyconfig-agent 在跑、且蓝牙已选「由 Agent 占用」并连上键盘。\n"
+            let msg = "[ahakey-hook] \(ide) \(hookName): 에이전트 응답이 없거나 Unix socket 연결에 실패했습니다(/tmp/ahakey.sock 연결 불가 또는 타임아웃, 제한 시간 \(Int(permissionRequestTimeout))초)."
+                + "LaunchAgent 에서 ahakeyconfig-agent 가 실행 중이고, 블루투스가 「에이전트가 점유」로 설정되어 키보드에 연결되어 있는지 확인해 주세요.\n"
             FileHandle.standardError.write(Data(msg.utf8))
         } else if switchState == nil, reply != nil {
-            let msg = "[ahakey-hook] \(ide) \(hookName): 回包无有效 switchState（需 BLE 已连且能读到拨杆 0=自动批准），将按交回用户/终端处理。\n"
+            let msg = "[ahakey-hook] \(ide) \(hookName): 응답에 유효한 switchState 가 없습니다(BLE 가 연결되어 레버 값을 읽을 수 있어야 하며 0=자동 승인). 사용자/터미널로 넘겨 처리합니다.\n"
             FileHandle.standardError.write(Data(msg.utf8))
         } else if let s = switchState, s != 0 {
-            let msg = "[ahakey-hook] \(ide) \(hookName): 拨杆 switchState=\(s)（非 0），不自动批准。\n"
+            let msg = "[ahakey-hook] \(ide) \(hookName): 레버 switchState=\(s)(0 이 아님)이므로 자동 승인하지 않습니다.\n"
             FileHandle.standardError.write(Data(msg.utf8))
         }
     }
@@ -244,7 +268,7 @@ enum HookSupport {
         var out: [String: Any] = [
             "userCliConfig": CursorCliLeverSync.diagnosticSnapshotForLog(),
             "userPermissionsJson": CursorPermissionsJsonLeverSync.diagnosticSnapshotForLog(),
-            "note": "IDE「Not in allowlist」用 ~/.cursor/permissions.json 的 terminalAllowlist，与 userCliConfig（cli-config=CLI）分离；见 cursor.com/docs/reference/permissions",
+            "note": "IDE 의 「Not in allowlist」는 ~/.cursor/permissions.json 의 terminalAllowlist 를 사용하며, userCliConfig(cli-config=CLI)와는 분리되어 있다. cursor.com/docs/reference/permissions 참고",
             "stdinFields": cursorStdinDebugFields(stdinData),
             "processEnvCursorVscode": cursorRelatedEnvForLog(),
         ]

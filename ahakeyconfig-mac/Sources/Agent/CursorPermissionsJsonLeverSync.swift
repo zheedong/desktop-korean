@@ -1,8 +1,8 @@
 import Foundation
 
-/// IDE 内 Agent 终端 TUI 的 **「Not in allowlist」** 与 `~/.cursor/permissions.json` 里的 **`terminalAllowlist`**
-/// 有关（见 Cursor 文档「permissions.json reference」），与 **`~/.cursor/cli-config.json`（CLI 权限）是两套**。
-/// 只改 cli-config 不会作用到该 TUI；拨杆为 0 时在此文件合并 `terminalAllowlist` 的前缀项。
+/// IDE 안의 에이전트 터미널 TUI 에 나타나는 **「Not in allowlist」** 는 `~/.cursor/permissions.json` 의 **`terminalAllowlist`** 와
+/// 관련이 있다(Cursor 문서 「permissions.json reference」 참고). 이는 **`~/.cursor/cli-config.json`(CLI 권한)과는 별개의 체계다**.
+/// cli-config 만 고쳐도 이 TUI 에는 반영되지 않는다. 레버가 0 일 때 이 파일의 `terminalAllowlist` 에 접두어 항목을 병합한다.
 enum CursorPermissionsJsonLeverSync {
     private static var permURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -17,7 +17,7 @@ enum CursorPermissionsJsonLeverSync {
             .appendingPathComponent(".ahakey_had_no_permissions_json", isDirectory: false)
     }
 
-    /// 与文档「Terminal allowlist format」一致：前缀匹配，如 `cd` 可匹配以 `cd ` 开头的整行；另含 `swift` 等以覆盖 `cd … && swift …` 被拆检的情况。
+    /// 문서 「Terminal allowlist format」과 동일하다: 접두어 매칭이므로 예를 들어 `cd` 는 `cd ` 로 시작하는 줄 전체와 일치한다. `cd … && swift …` 가 분리되어 검사되는 경우를 감당하려고 `swift` 등도 포함한다.
     private static let relaxedTerminalPrefixes: [String] = [
         "cd", "swift", "swift build", "xcodebuild", "git", "npm", "yarn", "pnpm", "bun", "deno", "node",
         "make", "cargo", "go", "python3", "python", "ruby", "bash", "zsh", "sh", "curl", "ls",
@@ -42,7 +42,7 @@ enum CursorPermissionsJsonLeverSync {
                     if fm.fileExists(atPath: snapshotURL.path) { try? fm.removeItem(at: snapshotURL) }
                     try fm.copyItem(at: permURL, to: snapshotURL)
                 } catch {
-                    fprintStderr("CursorPermissionsJsonLeverSync: 无法备份原 permissions.json: \(error.localizedDescription)\n")
+                    fprintStderr("CursorPermissionsJsonLeverSync: 기존 permissions.json 을 백업할 수 없습니다: \(error.localizedDescription)\n")
                 }
             } else {
                 try? Data().write(to: hadNoPriorMarker, options: .atomic)
@@ -56,7 +56,7 @@ enum CursorPermissionsJsonLeverSync {
         }
         root["terminalAllowlist"] = list
         if !writeJson(root, to: permURL) {
-            fprintStderr("CursorPermissionsJsonLeverSync: 无法写回 \(permURL.path)\n")
+            fprintStderr("CursorPermissionsJsonLeverSync: \(permURL.path) 에 기록할 수 없습니다\n")
         }
     }
 
@@ -74,7 +74,7 @@ enum CursorPermissionsJsonLeverSync {
             try fm.copyItem(at: snapshotURL, to: permURL)
             try fm.removeItem(at: snapshotURL)
         } catch {
-            fprintStderr("CursorPermissionsJsonLeverSync: 无法从快照恢复 permissions.json: \(error.localizedDescription)\n")
+            fprintStderr("CursorPermissionsJsonLeverSync: 스냅샷에서 permissions.json 을 복원할 수 없습니다: \(error.localizedDescription)\n")
         }
     }
 
@@ -107,7 +107,7 @@ enum CursorPermissionsJsonLeverSync {
         FileHandle.standardError.write(Data(s.utf8))
     }
 
-    // MARK: - 诊断
+    // MARK: - 진단
 
     static func diagnosticSnapshotForLog() -> [String: Any] {
         let fm = FileManager.default

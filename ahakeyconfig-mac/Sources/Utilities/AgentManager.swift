@@ -3,11 +3,11 @@ import os.log
 
 private let log = Logger(subsystem: "lab.jawa.ahakeyconfig", category: "AgentManager")
 
-// MARK: - 蓝牙占用方（AhaKey Studio 与 Agent 是两套独立进程，同一时刻只应有一个 GATT 连接键盘）
+// MARK: - 블루투스 점유 주체 (AhaKey Studio와 에이전트는 서로 독립된 프로세스이므로, 같은 시점에 키보드와 GATT 연결을 유지하는 쪽은 하나여야 한다)
 
-/// 由谁持有与键盘的 BLE 连接。
-/// - `ahaKeyStudio`：主 App 连接，用于改键、LCD、本机 LED 测试等。
-/// - `agentDaemon`：仅运行 `ahakeyconfig-agent`（Hook → Unix socket → 写 0x90 状态、读拨杆），由 LaunchAgent 拉起。
+/// 키보드와의 BLE 연결을 누가 점유하는지.
+/// - `ahaKeyStudio`: 메인 앱이 연결하며, 키 리매핑·LCD·로컬 LED 테스트 등에 사용한다.
+/// - `agentDaemon`: `ahakeyconfig-agent`만 실행하며(훅 → Unix 소켓 → 0x90 상태 쓰기, 레버 읽기), LaunchAgent가 실행한다.
 enum BluetoothConnectionOwner: String, CaseIterable, Identifiable {
     case ahaKeyStudio
     case agentDaemon
@@ -23,13 +23,13 @@ enum BluetoothConnectionOwner: String, CaseIterable, Identifiable {
 
     var shortDetail: String {
         switch self {
-        case .ahaKeyStudio: return "本 App 连接蓝牙，用于配置与同步。Agent 的 LaunchJob 在持有方为 App 时不会加载，避免抢连接。"
-        case .agentDaemon: return "仅 Agent 连接蓝牙。Claude/Cursor/Codex/Kimi Code CLI Hook 才能驱动灯条与拨杆查询；本 App 里无法对键盘发 BLE 命令。"
+        case .ahaKeyStudio: return "이 앱이 블루투스에 연결해 설정과 동기화에 사용합니다. 점유 주체가 앱일 때는 에이전트의 LaunchJob이 로드되지 않아 연결 충돌을 막습니다."
+        case .agentDaemon: return "에이전트만 블루투스에 연결합니다. Claude/Cursor/Codex/Kimi Code CLI 훅이 라이트바와 레버 조회를 구동할 수 있으며, 이 앱에서는 키보드로 BLE 명령을 보낼 수 없습니다."
         }
     }
 }
 
-/// 管理 ahakeyconfig-agent 守护进程的安装、启停、状态查询
+/// ahakeyconfig-agent 데몬 프로세스의 설치, 시작·정지, 상태 조회를 관리한다
 @MainActor
 final class AgentManager: ObservableObject {
     static let shared = AgentManager()
@@ -39,20 +39,20 @@ final class AgentManager: ObservableObject {
 
     @Published private(set) var isInstalled = false
     @Published private(set) var isRunning = false
-    @Published private(set) var isAgentBLEConnected = false   // agent 的 BLE 是否真正连上键盘
-    @Published private(set) var hooksInstalled = false        // Claude / Cursor / Codex / Kimi hooks 是否装了任何一个
+    @Published private(set) var isAgentBLEConnected = false   // 에이전트의 BLE가 실제로 키보드에 연결되었는지
+    @Published private(set) var hooksInstalled = false        // Claude / Cursor / Codex / Kimi 훅 중 하나라도 설치되었는지
     @Published private(set) var claudeHooksInstalled = false
     @Published private(set) var cursorHooksInstalled = false
     @Published private(set) var codexHooksInstalled = false
     @Published private(set) var kimiHooksInstalled = false
 
-    /// 用户选择的蓝牙占用方（存 UserDefaults，启动时应用一次）
+    /// 사용자가 선택한 블루투스 점유 주체 (UserDefaults에 저장하고 시작 시 한 번 적용)
     @Published var bluetoothConnectionOwner: BluetoothConnectionOwner = .agentDaemon
 
-    /// 安装 / 启停 Agent、写 Hooks 等操作的结果说明；关闭弹窗后由 UI 置 `nil`。
+    /// 에이전트 설치 / 시작·정지, 훅 쓰기 등 작업의 결과 설명. 팝업을 닫으면 UI가 `nil`로 되돌린다.
     @Published var agentUserAlert: String?
 
-    /// 正在执行安装或 launchctl 启停，用于界面显示进度，避免「点了没反应」。
+    /// 설치 또는 launchctl 시작·정지를 실행 중임을 나타낸다. 화면에 진행 상태를 표시해 '눌렀는데 반응이 없다'는 상황을 막는다.
     @Published private(set) var isAgentOperationInProgress = false
 
     private let label = "lab.jawa.ahakeyconfig.agent"
@@ -67,14 +67,14 @@ final class AgentManager: ObservableObject {
         launchAgentsDirectoryURL.appendingPathComponent("\(label).plist").path
     }
 
-    /// `~/Library/LaunchAgents` 在全新系统用户下可能尚不存在，必须先创建再写 plist，否则会报「folder doesn't exist」类错误。
+    /// `~/Library/LaunchAgents`는 새로 만든 시스템 사용자에게는 아직 없을 수 있다. 먼저 생성한 뒤 plist를 써야 하며, 그렇지 않으면 'folder doesn't exist' 류의 오류가 난다.
     private func ensureLaunchAgentsDirectory() throws {
         try FileManager.default.createDirectory(at: launchAgentsDirectoryURL, withIntermediateDirectories: true, attributes: nil)
     }
 
     private var agentBinaryPath: String {
-        // 发版优先使用 app bundle 内部的 agent。`swift run AhaKeyConfig` 是裸可执行文件，
-        // 开发时回退到同一 SwiftPM build 目录里的 sibling agent，便于从源码安装 LaunchAgent。
+        // 배포판에서는 앱 번들 내부의 에이전트를 우선 사용한다. `swift run AhaKeyConfig`는 번들 없는 실행 파일이므로,
+        // 개발 중에는 같은 SwiftPM 빌드 디렉터리에 있는 형제 에이전트로 폴백해 소스에서 LaunchAgent를 설치하기 쉽게 한다.
         let bundled = "\(Bundle.main.bundlePath)/Contents/MacOS/ahakeyconfig-agent"
         if FileManager.default.isExecutableFile(atPath: bundled) {
             return bundled
@@ -89,12 +89,12 @@ final class AgentManager: ObservableObject {
         return bundled
     }
 
-    /// 供界面判断：包内是否带有 agent 可执行文件（发版缺拷贝时 LaunchAgent 无法真正运行）。
+    /// 화면 판단용: 번들에 에이전트 실행 파일이 들어 있는지 (배포 시 복사가 빠지면 LaunchAgent가 실제로 실행되지 않는다).
     var isAgentBinaryPresentInBundle: Bool {
         FileManager.default.isExecutableFile(atPath: agentBinaryPath)
     }
 
-    /// 兼容性：老版本通过 shell 脚本转发；现在直接调用 agent 二进制。保留路径用于卸载时清理。
+    /// 호환성: 구버전은 셸 스크립트로 전달했지만 이제는 에이전트 바이너리를 직접 호출한다. 제거 시 정리용으로 경로를 남겨 둔다.
     private var legacyHookScriptPath: String {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return home.appendingPathComponent(".claude/hooks/ahakey-state.sh").path
@@ -143,13 +143,13 @@ final class AgentManager: ObservableObject {
             .appendingPathComponent(".zshrc").path
     }
 
-    /// `~/.cursor/cli-config.json`：Cursor **CLI** 的 `permissions`（`Shell(...)` 等）与 `approvalMode`。
+    /// `~/.cursor/cli-config.json`: Cursor **CLI**의 `permissions`(`Shell(...)` 등)와 `approvalMode`.
     private var cursorCliConfigPath: String {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".cursor/cli-config.json").path
     }
 
-    /// `~/.cursor/permissions.json`：IDE 内 **Agent 终端 TUI** 的 `terminalAllowlist`（与 cli-config 独立，见官方文档）。
+    /// `~/.cursor/permissions.json`: IDE 안 **에이전트 터미널 TUI**의 `terminalAllowlist` (cli-config와 별개, 공식 문서 참고).
     private var cursorPermissionsJsonPath: String {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".cursor/permissions.json").path
@@ -166,7 +166,7 @@ final class AgentManager: ObservableObject {
         refresh()
     }
 
-    // MARK: - 状态刷新
+    // MARK: - 상태 갱신
 
     func refresh() {
         isInstalled = FileManager.default.fileExists(atPath: plistPath)
@@ -187,11 +187,11 @@ final class AgentManager: ObservableObject {
         }
     }
 
-    /// 通知 agent 设置/清除虚拟拨杆覆盖。fire-and-forget；agent 会:
-    /// 1) 落进 UserDefaults 持久化
-    /// 2) 写入共享文件让主 App 立即看到
-    /// 3) 不再发送旧 0x91；最新固件 0x91 用于灯效预览
-    /// value=nil 表示清除覆盖（回到读真实 GPIO 值）。
+    /// 에이전트에 가상 레버 오버라이드 설정/해제를 알린다. fire-and-forget이며, 에이전트는:
+    /// 1) UserDefaults에 저장해 유지한다
+    /// 2) 공유 파일에 기록해 메인 앱이 즉시 확인할 수 있게 한다
+    /// 3) 더 이상 구형 0x91을 보내지 않는다. 최신 펌웨어의 0x91은 조명 효과 미리보기에 쓰인다
+    /// value=nil은 오버라이드 해제를 뜻한다 (실제 GPIO 값 읽기로 복귀).
     func sendSwitchOverride(_ value: UInt8?) {
         DispatchQueue.global(qos: .userInitiated).async { [socketPath] in
             let fd = socket(AF_UNIX, SOCK_STREAM, 0)
@@ -221,12 +221,12 @@ final class AgentManager: ObservableObject {
                 return write(fd, base, ptr.count)
             }
             var buf = [UInt8](repeating: 0, count: 256)
-            _ = read(fd, &buf, buf.count) // 等回包再关 fd，避免 agent 还没处理就被 reset
+            _ = read(fd, &buf, buf.count) // 응답을 받은 뒤 fd를 닫아, 에이전트가 처리하기 전에 reset되는 것을 막는다
         }
     }
 
-    /// 向 agent socket 发 status 命令，switchState 非 null 即代表 BLE 已连上键盘。
-    /// 同步执行，需在后台线程调用。
+    /// 에이전트 소켓에 status 명령을 보낸다. switchState가 null이 아니면 BLE가 키보드에 연결된 것이다.
+    /// 동기로 실행되므로 백그라운드 스레드에서 호출해야 한다.
     nonisolated private static func querySocketBLEConnected(socketPath: String) -> Bool {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { return false }
@@ -267,16 +267,16 @@ final class AgentManager: ObservableObject {
         return !(json["switchState"] is NSNull) && json["switchState"] != nil
     }
 
-    // MARK: - 蓝牙占用方（App ↔ Agent 二选一）
+    // MARK: - 블루투스 점유 주체 (앱 ↔ 에이전트 중 하나)
 
-    /// 启动主窗口时调用一次：按用户上次选择，要么由 App 连键盘，要么交给 Agent（不自动连 App）。
+    /// 메인 윈도우를 시작할 때 한 번 호출한다. 사용자의 지난 선택에 따라 앱이 키보드에 연결하거나 에이전트에 넘긴다 (앱을 자동으로 연결하지는 않는다).
     func applyStoredBluetoothPreferenceOnLaunch(bleManager: AhaKeyBLEManager) {
         guard !Self.didApplyLaunchBluetoothPreference else { return }
         Self.didApplyLaunchBluetoothPreference = true
         applyBluetoothOwner(bluetoothConnectionOwner, bleManager: bleManager, isLaunch: true)
     }
 
-    /// 用户在「设备信息」里切换占用方时调用。
+    /// 사용자가 '기기 정보'에서 점유 주체를 바꿀 때 호출한다.
     func setBluetoothConnectionOwner(_ owner: BluetoothConnectionOwner, bleManager: AhaKeyBLEManager) {
         guard owner != bluetoothConnectionOwner else { return }
         bluetoothConnectionOwner = owner
@@ -298,10 +298,10 @@ final class AgentManager: ObservableObject {
             bleManager.setSuppressedForAgentOwningKeyboard(true)
             bleManager.disconnect()
             guard isInstalled else {
-                log.info("未安装 LaunchAgent，无法将蓝牙交给 Agent，临时允许 App 连接")
+                log.info("LaunchAgent가 설치되지 않아 블루투스를 에이전트에 넘길 수 없어, 임시로 앱 연결을 허용합니다")
                 bleManager.setSuppressedForAgentOwningKeyboard(false)
                 if !isLaunch {
-                    agentUserAlert = "尚未安装 Agent，无法切回「键盘控制中」。请在「更多 → 设备信息 · Agent」里先安装并启用 Agent。"
+                    agentUserAlert = "에이전트가 아직 설치되지 않아 '키보드 제어 중'으로 되돌릴 수 없습니다. '더 보기 → 기기 정보 · Agent'에서 에이전트를 먼저 설치하고 활성화하세요."
                 }
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: UInt64(500) * 1_000_000)
@@ -329,7 +329,7 @@ final class AgentManager: ObservableObject {
         }
     }
 
-    /// 从 launchd 卸载 Agent（比 `stop` 更彻底：`KeepAlive` 下 stop 会立刻重启进程，仍占着蓝牙）。
+    /// launchd에서 에이전트를 언로드한다 (`stop`보다 확실하다. `KeepAlive`가 켜져 있으면 stop 후 프로세스가 곧바로 재시작되어 블루투스를 계속 점유한다).
     private func unloadAgentLaunchJobRemovingSocket() {
         guard FileManager.default.fileExists(atPath: plistPath) else {
             removeStaleSocketIfNeeded()
@@ -376,7 +376,7 @@ final class AgentManager: ObservableObject {
         guard let text = try? String(contentsOfFile: codexConfigPath, encoding: .utf8) else {
             return false
         }
-        // AhaKey 写入的 BEGIN/END 块即可判定（不依赖文件中是否仍能匹配到 ahakeyconfig-agent 字面量，避免因路径别名/重装 App 路径变化导致误判未装）
+        // AhaKey가 기록한 BEGIN/END 블록만으로 판정한다 (파일에서 ahakeyconfig-agent 리터럴이 여전히 매칭되는지에 의존하지 않아, 경로 별칭이나 앱 재설치로 경로가 바뀌었을 때 미설치로 오판하는 것을 막는다)
         if text.contains(codexHookBlockStart), text.contains(codexHookBlockEnd) {
             return true
         }
@@ -398,12 +398,12 @@ final class AgentManager: ObservableObject {
     }
 
     private func checkRunning() -> Bool {
-        // 检查 socket 是否存在（agent 运行时会创建）
+        // 소켓이 존재하는지 확인한다 (에이전트가 실행되면 생성된다)
         var statBuf = stat()
         return stat(socketPath, &statBuf) == 0 && (statBuf.st_mode & S_IFSOCK) != 0
     }
 
-    // MARK: - 安装/卸载 LaunchAgent
+    // MARK: - LaunchAgent 설치/제거
 
     private func launchAgentPlist() -> String {
         """
@@ -437,11 +437,11 @@ final class AgentManager: ObservableObject {
         do {
             try ensureLaunchAgentsDirectory()
             try launchAgentPlist().write(toFile: plistPath, atomically: true, encoding: .utf8)
-            log.info("LaunchAgent 已安装: \(self.plistPath)")
+            log.info("LaunchAgent 설치 완료: \(self.plistPath)")
             return true
         } catch {
-            log.error("LaunchAgent 安装失败: \(error)")
-            agentUserAlert = "无法写入 LaunchAgent 配置文件：\(error.localizedDescription)\n\n将写入：\(plistPath)\n已尝试创建目录：\(launchAgentsDirectoryURL.path)\n若仍失败，请检查对「~/Library」是否有写权限，或本机管理策略是否禁止用户 LaunchAgents。"
+            log.error("LaunchAgent 설치 실패: \(error)")
+            agentUserAlert = "LaunchAgent 설정 파일을 쓸 수 없습니다: \(error.localizedDescription)\n\n쓰려는 위치: \(plistPath)\n디렉터리 생성을 시도했습니다: \(launchAgentsDirectoryURL.path)\n계속 실패한다면 '~/Library'에 쓰기 권한이 있는지, 또는 이 기기의 관리 정책이 사용자 LaunchAgents를 금지하는지 확인하세요."
             return false
         }
     }
@@ -463,27 +463,27 @@ final class AgentManager: ObservableObject {
         defer { isAgentOperationInProgress = false }
 
         guard isAgentBinaryPresentInBundle else {
-            agentUserAlert = "应用包内没有可执行的 ahakeyconfig-agent（路径：…/Contents/MacOS/ahakeyconfig-agent）。请确认发版脚本已把该二进制一并打进 .app；仅有主程序时无法安装守护进程。"
+            agentUserAlert = "앱 번들에 실행 가능한 ahakeyconfig-agent가 없습니다(경로: …/Contents/MacOS/ahakeyconfig-agent). 배포 스크립트가 이 바이너리를 .app에 함께 포함했는지 확인하세요. 메인 프로그램만 있으면 데몬 프로세스를 설치할 수 없습니다."
             return
         }
 
-        // 1. 先卸载旧 job，再写入 plist。否则同 Label 已加载时 launchd 可能继续持有旧 ProgramArguments。
+        // 1. 먼저 기존 job을 언로드한 뒤 plist를 쓴다. 그러지 않으면 같은 Label이 이미 로드된 상태에서 launchd가 이전 ProgramArguments를 계속 붙들 수 있다.
         unloadAgentLaunchJobRemovingSocket()
         guard writeLaunchAgentPlist() else { return }
 
-        // 2. 仅当用户希望 Agent 持有蓝牙时才 load（否则只写入 plist，避免装完立刻抢 GATT）
+        // 2. 사용자가 에이전트에 블루투스를 맡기려는 경우에만 load한다 (그 외에는 plist만 써서, 설치 직후 GATT를 가로채지 않게 한다)
         var loadFailed = false
         if bluetoothConnectionOwner == .agentDaemon {
             let load = runLaunchctlDetailed(["load", plistPath])
             if !load.ok && !isBenignLaunchctlLoadMessage(load.mergedOutput) {
                 loadFailed = true
                 log.error("launchctl load failed: \(load.mergedOutput)")
-                let out = load.mergedOutput.isEmpty ? "（无输出，退出非 0）" : load.mergedOutput
-                agentUserAlert = "LaunchAgent 的 plist 已保存，但 launchctl load 失败，守护进程未载入。\n\nlaunchctl 输出：\n\(out)\n\n常见原因：同一 Label 已存在、plist 无效、对 ~/Library/LaunchAgents 无写权限。可先点「卸载」再装，或在「控制台」搜索 \(label)。"
+                let out = load.mergedOutput.isEmpty ? "(출력 없음, 종료 코드가 0이 아님)" : load.mergedOutput
+                agentUserAlert = "LaunchAgent의 plist는 저장되었지만 launchctl load가 실패해 데몬 프로세스가 로드되지 않았습니다.\n\nlaunchctl 출력:\n\(out)\n\n흔한 원인: 같은 Label이 이미 존재함, plist가 유효하지 않음, ~/Library/LaunchAgents에 쓰기 권한이 없음. '제거'를 먼저 누른 뒤 다시 설치하거나, '콘솔'에서 \(label)을 검색해 보세요."
             }
         }
 
-        // 3. 安装 Claude / Cursor / Codex / Kimi hooks（直接指向 agent 二进制 hook 子命令）
+        // 3. Claude / Cursor / Codex / Kimi 훅 설치 (에이전트 바이너리의 hook 하위 명령을 직접 가리킨다)
         let claudeLine = installClaudeHooks()
         let cursorLine = installCursorHooks()
         let codexLine = installCodexHooks()
@@ -493,7 +493,7 @@ final class AgentManager: ObservableObject {
 
         var lines: [String] = []
         if bluetoothConnectionOwner == .agentDaemon, !loadFailed {
-            lines.append("launchctl load 已执行。若数秒后未显示「运行中」，请点「查看日志」。")
+            lines.append("launchctl load를 실행했습니다. 몇 초 뒤에도 '실행 중'으로 표시되지 않으면 '로그 보기'를 누르세요.")
         }
         if !claudeLine.isEmpty { lines.append(claudeLine) }
         if !cursorLine.isEmpty { lines.append(cursorLine) }
@@ -503,25 +503,25 @@ final class AgentManager: ObservableObject {
         if let err = agentUserAlert {
             agentUserAlert = err + (tail.isEmpty ? "" : "\n\n——\n\n" + tail)
         } else {
-            agentUserAlert = tail.isEmpty ? "安装完成。" : tail
+            agentUserAlert = tail.isEmpty ? "설치가 완료되었습니다." : tail
         }
     }
 
     func uninstall(bleManager: AhaKeyBLEManager? = nil) {
-        // 1. 卸载 LaunchAgent
+        // 1. LaunchAgent 제거
         _ = runLaunchctlQuiet(["unload", plistPath])
         try? FileManager.default.removeItem(atPath: plistPath)
 
-        // 2. 清理老版本 shell hook 脚本（如果存在）
+        // 2. 구버전 셸 훅 스크립트 정리 (있는 경우)
         try? FileManager.default.removeItem(atPath: legacyHookScriptPath)
 
-        // 3. 移除 Claude / Cursor / Codex / Kimi hooks 中的 ahakey 条目（同时覆盖老 shell 脚本与新二进制命令）
+        // 3. Claude / Cursor / Codex / Kimi 훅에서 ahakey 항목 제거 (구 셸 스크립트와 새 바이너리 명령을 모두 포함)
         removeClaudeHooks()
         removeCursorHooks()
         removeCodexHooks()
         _ = removeKimiHooks()
 
-        // 4. 清理 socket
+        // 4. 소켓 정리
         if FileManager.default.fileExists(atPath: socketPath) {
             try? FileManager.default.removeItem(atPath: socketPath)
         }
@@ -530,14 +530,14 @@ final class AgentManager: ObservableObject {
         UserDefaults.standard.set(BluetoothConnectionOwner.ahaKeyStudio.rawValue, forKey: Self.bluetoothOwnerKey)
         bleManager?.setSuppressedForAgentOwningKeyboard(false)
 
-        log.info("已卸载 agent + hooks")
+        log.info("에이전트 + 훅 제거 완료")
         refresh()
     }
 
-    /// 启动 Agent 守护进程（先确保 Job 已 load，再 start；适合「已安装但未运行」）。
+    /// 에이전트 데몬 프로세스를 시작한다 (먼저 Job이 load되었는지 확인한 뒤 start. '설치되었지만 실행되지 않음' 상태에 적합).
     func start() {
         guard isInstalled else {
-            agentUserAlert = "尚未安装 LaunchAgent。请先点「安装并启用」。"
+            agentUserAlert = "LaunchAgent가 아직 설치되지 않았습니다. 먼저 '설치 후 활성화'를 누르세요."
             return
         }
         if launchAgentNeedsRewrite() {
@@ -552,22 +552,22 @@ final class AgentManager: ObservableObject {
             self.isAgentOperationInProgress = false
             self.refresh()
             if !self.isRunning {
-                var m = "已执行 launchctl load / start，但尚未检测到 Agent 在运行（未出现 /tmp/ahakey.sock）。\n\n"
+                var m = "launchctl load / start를 실행했지만 에이전트가 실행 중인 것으로 감지되지 않았습니다(/tmp/ahakey.sock이 생기지 않음).\n\n"
                 if !loadRes.ok && !isBenignLaunchctlLoadMessage(loadRes.mergedOutput) {
-                    m += "load：\n\(loadRes.mergedOutput.isEmpty ? "（无输出）" : loadRes.mergedOutput)\n\n"
+                    m += "load:\n\(loadRes.mergedOutput.isEmpty ? "(출력 없음)" : loadRes.mergedOutput)\n\n"
                 }
                 if !startRes.ok {
-                    m += "start：\n\(startRes.mergedOutput.isEmpty ? "（无输出）" : startRes.mergedOutput)\n\n"
+                    m += "start:\n\(startRes.mergedOutput.isEmpty ? "(출력 없음)" : startRes.mergedOutput)\n\n"
                 }
-                m += "请点「查看日志」检查 \(self.logFilePath)；并确认系统「隐私与安全性」中已允许本应用使用蓝牙；若通过 LaunchAgent 拉起 agent 子进程，也需为同一签名的二进制授权。"
+                m += "'로그 보기'를 눌러 \(self.logFilePath)를 확인하세요. 또한 시스템 '개인정보 보호 및 보안'에서 이 앱의 블루투스 사용을 허용했는지 확인하세요. LaunchAgent로 에이전트 하위 프로세스를 실행하는 경우에도 같은 서명의 바이너리에 권한을 부여해야 합니다."
                 self.agentUserAlert = m
             } else if (!loadRes.ok && !isBenignLaunchctlLoadMessage(loadRes.mergedOutput)) || !startRes.ok {
-                self.agentUserAlert = "Agent 已运行。附注：launchctl 输出 — load：\(loadRes.mergedOutput) start：\(startRes.mergedOutput)"
+                self.agentUserAlert = "에이전트가 실행 중입니다. 참고: launchctl 출력 — load: \(loadRes.mergedOutput) start: \(startRes.mergedOutput)"
             }
         }
     }
 
-    /// 停止 Agent 并 **unload** 出 launchd，否则 `KeepAlive` 会让进程立刻重启并继续占蓝牙。
+    /// 에이전트를 정지하고 launchd에서 **unload**한다. 그러지 않으면 `KeepAlive` 때문에 프로세스가 곧바로 재시작되어 블루투스를 계속 점유한다.
     func stop() {
         unloadAgentLaunchJobRemovingSocket()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
@@ -584,14 +584,14 @@ final class AgentManager: ObservableObject {
         return dir.appendingPathComponent("agent.log").path
     }
 
-    /// Hook 子进程在每次 Claude `PermissionRequest` 时追加 JSON 行，与 `HookClient` 中 diagnostics 路径一致。
+    /// 훅 하위 프로세스가 Claude `PermissionRequest`마다 JSON 줄을 덧붙인다. `HookClient`의 diagnostics 경로와 동일하다.
     var permissionRequestLogPath: String {
         URL(fileURLWithPath: logFilePath).deletingLastPathComponent()
             .appendingPathComponent("permission-request.log")
             .path
     }
 
-    /// Codex 所有 AhaKey hook 触发记录：状态 hook 与 PermissionRequest 都会追加 JSON 行。
+    /// Codex의 모든 AhaKey 훅 트리거 기록: 상태 훅과 PermissionRequest 모두 JSON 줄을 덧붙인다.
     var codexHookLogPath: String {
         URL(fileURLWithPath: logFilePath).deletingLastPathComponent()
             .appendingPathComponent("codex-hook.log")
@@ -599,69 +599,69 @@ final class AgentManager: ObservableObject {
     }
 
     func readLog() -> String {
-        (try? String(contentsOfFile: logFilePath, encoding: .utf8)) ?? "(无日志)"
+        (try? String(contentsOfFile: logFilePath, encoding: .utf8)) ?? "(로그 없음)"
     }
 
-    // MARK: - Cursor 用户级文件（可展示、可合并，非 Hook 子进程管理）
+    // MARK: - Cursor 사용자 수준 파일 (표시·병합 가능. 훅 하위 프로세스가 관리하지 않는다)
 
-    /// 与「安装 Cursor Hooks」写入路径一致，便于在 UI 中展示或对照。
+    /// 'Cursor Hooks 설치'가 쓰는 경로와 동일하며, UI에서 표시하거나 대조하기 쉽다.
     var userCursorHooksJsonFilePath: String { cursorHooksPath }
 
-    /// Codex 0.125 使用 `~/.codex/config.toml` 的 inline `[[hooks.Event]]`。
+    /// Codex 0.125는 `~/.codex/config.toml`의 인라인 `[[hooks.Event]]`를 사용한다.
     var userCodexConfigFilePath: String { codexConfigPath }
 
-    /// Kimi Code CLI（Beta）使用 `~/.kimi/config.toml` 的 `[[hooks]]`。
+    /// Kimi Code CLI(베타)는 `~/.kimi/config.toml`의 `[[hooks]]`를 사용한다.
     var userKimiConfigFilePath: String { kimiConfigPath }
 
-    /// Cursor CLI / Agent 的全局 `permissions` 等（控制 Shell 等是否仍弹层确认，与 `hooks.json` 独立）。
+    /// Cursor CLI / 에이전트의 전역 `permissions` 등 (Shell 등이 여전히 확인 창을 띄우는지를 제어하며, `hooks.json`과는 별개).
     var userCursorCliConfigFilePath: String { cursorCliConfigPath }
 
-    /// 将 `~/.cursor/hooks.json` 以可读（pretty）形式读出；不存在时返回说明。
+    /// `~/.cursor/hooks.json`을 읽기 쉬운(pretty) 형태로 읽어 온다. 파일이 없으면 설명을 반환한다.
     func readUserCursorHooksJsonForDisplay() -> String {
         let path = cursorHooksPath
         guard FileManager.default.fileExists(atPath: path) else {
-            return "（文件不存在：\(path)）\n\n可先点「安装 Cursor Hooks」生成或合并；若只使用**项目内** `.cursor/hooks.json`，本路径仍可能为空。"
+            return "(파일이 없습니다: \(path))\n\n'Cursor Hooks 설치'를 눌러 생성하거나 병합할 수 있습니다. **프로젝트 내** `.cursor/hooks.json`만 사용한다면 이 경로는 비어 있을 수 있습니다."
         }
-        return Self.prettyJsonString(atPath: path) ?? "（存在但无法解析为 JSON：\(path)）"
+        return Self.prettyJsonString(atPath: path) ?? "(파일은 있지만 JSON으로 파싱할 수 없습니다: \(path))"
     }
 
-    /// 将 `~/.cursor/cli-config.json` 以可读（pretty）形式读出；不存在时提示。
+    /// `~/.cursor/cli-config.json`을 읽기 쉬운(pretty) 형태로 읽어 온다. 파일이 없으면 안내한다.
     func readUserCursorCliConfigForDisplay() -> String {
         let path = cursorCliConfigPath
         guard FileManager.default.fileExists(atPath: path) else {
-            return "（文件不存在：\(path)）\n\n可点诊断面板中「合并 Shell 白名单 + approvalMode=auto」从空白创建；或自行在文档中按 `permissions` 配置。"
+            return "(파일이 없습니다: \(path))\n\n진단 패널에서 'Shell 허용 목록 병합 + approvalMode=auto'를 눌러 새로 만들 수 있습니다. 또는 문서를 참고해 `permissions`를 직접 설정하세요."
         }
-        return Self.prettyJsonString(atPath: path) ?? "（存在但无法解析为 JSON：\(path)）"
+        return Self.prettyJsonString(atPath: path) ?? "(파일은 있지만 JSON으로 파싱할 수 없습니다: \(path))"
     }
 
-    /// 将 `~/.codex/config.toml` 原样读出；Codex hooks 是 TOML，不是 JSON。
+    /// `~/.codex/config.toml`을 그대로 읽어 온다. Codex 훅은 JSON이 아니라 TOML이다.
     func readUserCodexConfigForDisplay() -> String {
         let path = codexConfigPath
         guard FileManager.default.fileExists(atPath: path) else {
-            return "（文件不存在：\(path)）\n\n可先点「安装 Codex Hooks」创建并合并 `[features].hooks` 与 AhaKey hook block。"
+            return "(파일이 없습니다: \(path))\n\n'Codex Hooks 설치'를 눌러 `[features].hooks`와 AhaKey hook block을 생성하고 병합할 수 있습니다."
         }
-        return (try? String(contentsOfFile: path, encoding: .utf8)) ?? "（存在但无法读取：\(path)）"
+        return (try? String(contentsOfFile: path, encoding: .utf8)) ?? "(파일은 있지만 읽을 수 없습니다: \(path))"
     }
 
-    /// `~/.kimi/config.toml` 原样读出（Kimi Hooks 配置为文本 TOML）。
+    /// `~/.kimi/config.toml`을 그대로 읽어 온다 (Kimi Hooks 설정은 텍스트 TOML이다).
     func readUserKimiConfigForDisplay() -> String {
         let path = kimiConfigPath
         guard FileManager.default.fileExists(atPath: path) else {
-            return "（文件不存在：\(path)）\n\n可先点「安装 Kimi Hooks」创建并写入 AhaKey 标记块；须已安装并使用 Kimi Code CLI：https://moonshotai.github.io/kimi-cli/"
+            return "(파일이 없습니다: \(path))\n\n'Kimi Hooks 설치'를 눌러 AhaKey 표시 블록을 생성하고 기록할 수 있습니다. Kimi Code CLI가 설치되어 사용 중이어야 합니다: https://moonshotai.github.io/kimi-cli/"
         }
-        return (try? String(contentsOfFile: path, encoding: .utf8)) ?? "（存在但无法读取：\(path)）"
+        return (try? String(contentsOfFile: path, encoding: .utf8)) ?? "(파일은 있지만 읽을 수 없습니다: \(path))"
     }
 
-    /// 备份当前 `cli-config` 后，合并 `permissions.allow`（不删你已有项），并设置 `approvalMode` 为 `auto`。
-    /// 用于减轻「hook 已 allow 但 Cursor 仍要求再点一次」中 **Cursor 自己那一层** 的拦阻。
-    /// - Returns: 给用户看的结果说明。
+    /// 현재 `cli-config`를 백업한 뒤 `permissions.allow`를 병합하고(기존 항목은 삭제하지 않는다) `approvalMode`를 `auto`로 설정한다.
+    /// '훅이 이미 allow했는데도 Cursor가 한 번 더 누르라고 요구하는' 상황에서 **Cursor 자체 계층**의 차단을 완화하는 데 쓴다.
+    /// - Returns: 사용자에게 보여 줄 결과 설명.
     func mergeUserCursorCliConfigForShellAutoApprove() -> String {
         let path = cursorCliConfigPath
         let cursorDir = (path as NSString).deletingLastPathComponent
         do {
             try FileManager.default.createDirectory(atPath: cursorDir, withIntermediateDirectories: true)
         } catch {
-            return "无法创建目录 \(cursorDir)：\(error.localizedDescription)"
+            return "디렉터리를 만들 수 없습니다 \(cursorDir): \(error.localizedDescription)"
         }
         if FileManager.default.fileExists(atPath: path) {
             let bak = path + ".ahakey.bak"
@@ -671,7 +671,7 @@ final class AgentManager: ObservableObject {
                 }
                 try FileManager.default.copyItem(atPath: path, toPath: bak)
             } catch {
-                return "已存在 \(path) 但无法复制备份到 \(bak)：\(error.localizedDescription)"
+                return "\(path)이(가) 이미 있지만 \(bak)으로 백업을 복사할 수 없습니다: \(error.localizedDescription)"
             }
         }
         var root = loadCursorCliConfig() ?? [:]
@@ -695,20 +695,20 @@ final class AgentManager: ObservableObject {
         root["approvalMode"] = "auto"
 
         guard saveCursorCliConfig(root) else {
-            return "合并后的 JSON 无法写回：\(path)"
+            return "병합한 JSON을 다시 쓸 수 없습니다: \(path)"
         }
         log.info("cli-config: merged Shell allow + approvalMode=auto at \(path)")
-        return "已写回：\(path)\n（此前若存在同路径文件，已备份为 \(path).ahakey.bak）\n\n本次在 permissions.allow 中新增合并 \(merged) 条常见 Shell(...) 规则（已有规则保留）；approvalMode 已设为 auto。\n\n若某版本仍弹窗，请把仍被拦的命令首词对照文档自行追加白名单：\nhttps://cursor.com/docs/cli/reference/permissions\n或检查工作区 .cursor/cli.json 是否另有限制。"
+        return "다시 썼습니다: \(path)\n(같은 경로에 파일이 있었다면 \(path).ahakey.bak으로 백업했습니다)\n\n이번에 permissions.allow에 흔히 쓰이는 Shell(...) 규칙 \(merged)개를 새로 병합했습니다(기존 규칙은 유지). approvalMode는 auto로 설정했습니다.\n\n특정 버전에서 여전히 창이 뜬다면, 차단된 명령의 첫 단어를 문서와 대조해 허용 목록에 직접 추가하세요:\nhttps://cursor.com/docs/cli/reference/permissions\n또는 작업 공간의 .cursor/cli.json에 별도 제한이 있는지 확인하세요."
     }
 
-    /// 合并 `~/.cursor/permissions.json` 的 `terminalAllowlist`（**IDE「Not in allowlist」** 与 cli-config 无关）。
+    /// `~/.cursor/permissions.json`의 `terminalAllowlist`를 병합한다 (**IDE의 'Not in allowlist'**는 cli-config와 무관하다).
     func mergeUserCursorPermissionsJsonForAgentTUI() -> String {
         let path = cursorPermissionsJsonPath
         let cursorDir = (path as NSString).deletingLastPathComponent
         do {
             try FileManager.default.createDirectory(atPath: cursorDir, withIntermediateDirectories: true)
         } catch {
-            return "无法创建目录 \(cursorDir)：\(error.localizedDescription)"
+            return "디렉터리를 만들 수 없습니다 \(cursorDir): \(error.localizedDescription)"
         }
         if FileManager.default.fileExists(atPath: path) {
             let bak = path + ".ahakey.bak"
@@ -716,7 +716,7 @@ final class AgentManager: ObservableObject {
                 if FileManager.default.fileExists(atPath: bak) { try FileManager.default.removeItem(atPath: bak) }
                 try FileManager.default.copyItem(atPath: path, toPath: bak)
             } catch {
-                return "已存在 permissions.json 但无法备份到 \(bak)：\(error.localizedDescription)"
+                return "permissions.json이 이미 있지만 \(bak)으로 백업할 수 없습니다: \(error.localizedDescription)"
             }
         }
         var root = loadCursorPermissionsJson() ?? [:]
@@ -732,10 +732,10 @@ final class AgentManager: ObservableObject {
         }
         root["terminalAllowlist"] = list
         guard saveCursorPermissionsJson(root) else {
-            return "无法写回：\(path)"
+            return "다시 쓸 수 없습니다: \(path)"
         }
         log.info("permissions.json: merged terminalAllowlist at \(path)")
-        return "已写回：\(path)（备份为 \(path).ahakey.bak）\n\n本次在 terminalAllowlist 中新增合并 \(n) 条前缀；用于 Agent 内「Not in allowlist」层，与 cli-config 的 Shell(...) 是两套。文档：\nhttps://cursor.com/docs/reference/permissions"
+        return "다시 썼습니다: \(path) (\(path).ahakey.bak으로 백업)\n\n이번에 terminalAllowlist에 접두어 \(n)개를 새로 병합했습니다. 에이전트 내부의 'Not in allowlist' 계층에 쓰이며, cli-config의 Shell(...)과는 별개입니다. 문서:\nhttps://cursor.com/docs/reference/permissions"
     }
 
     private func loadCursorPermissionsJson() -> [String: Any]? {
@@ -787,28 +787,28 @@ final class AgentManager: ObservableObject {
         }
     }
 
-    /// 只读；由 `ahakeyconfig-agent` 在 `PermissionRequest` 与 Cursor 批准类 hook 中写入。
+    /// 읽기 전용. `ahakeyconfig-agent`가 `PermissionRequest`와 Cursor 승인 계열 훅에서 기록한다.
     func readPermissionRequestLog() -> String {
         (try? String(contentsOfFile: permissionRequestLogPath, encoding: .utf8))
-            ?? "尚无记录。在 Claude 中触发 PermissionRequest，在 Cursor 中让 Agent 调工具/Shell/MCP，或在 Kimi Code CLI 中触发工具调用后，会在此追加带 `ide` / `hookEvent` 的 JSON 行。若始终为空，请确认已安装 Agent、Hooks、蓝牙由 Agent 占用，且 `~/Library/.../AhaKeyConfig/diagnostics/` 可写。"
+            ?? "아직 기록이 없습니다. Claude에서 PermissionRequest를 트리거하거나, Cursor에서 에이전트가 도구/Shell/MCP를 호출하게 하거나, Kimi Code CLI에서 도구 호출을 트리거하면 `ide` / `hookEvent`가 포함된 JSON 줄이 여기에 덧붙습니다. 계속 비어 있다면 에이전트와 훅이 설치되었는지, 블루투스를 에이전트가 점유하고 있는지, `~/Library/.../AhaKeyConfig/diagnostics/`에 쓸 수 있는지 확인하세요."
     }
 
-    /// 只读；由 `ahakeyconfig-agent hook Codex*` 子进程写入，用于判断 Codex 客户端/终端是否真的触发了 hook。
+    /// 읽기 전용. `ahakeyconfig-agent hook Codex*` 하위 프로세스가 기록하며, Codex 클라이언트/터미널이 실제로 훅을 트리거했는지 판단하는 데 쓴다.
     func readCodexHookLog() -> String {
         (try? String(contentsOfFile: codexHookLogPath, encoding: .utf8))
-            ?? "尚无记录。触发 Codex 后应在此追加 JSON 行。若终端 Codex 有记录、Codex 客户端没有记录，说明客户端未加载当前 `~/.codex/config.toml` hook，通常需要重启 Codex 客户端/新开终端后再测。"
+            ?? "아직 기록이 없습니다. Codex를 트리거하면 여기에 JSON 줄이 덧붙어야 합니다. 터미널 Codex에는 기록이 있는데 Codex 클라이언트에는 없다면, 클라이언트가 현재 `~/.codex/config.toml`의 훅을 로드하지 않은 것입니다. 보통 Codex 클라이언트를 재시작하거나 터미널을 새로 열고 다시 시도해야 합니다."
     }
 
-    // MARK: - Claude hooks 追加
+    // MARK: - Claude 훅 추가
 
-    /// Claude Code 支持的 hook 事件（和 HookClient.eventMap 对齐）
+    /// Claude Code가 지원하는 훅 이벤트 (HookClient.eventMap과 맞춤)
     private let hookEvents: [String] = [
         "Notification",
         "PermissionRequest",
         "PreToolUse",
         "PostToolUse",
         "Stop",
-        "SubagentStop",  // Claude Code 拆分后：手动终止任务时触发此事件
+        "SubagentStop",  // Claude Code 분리 이후: 작업을 수동으로 종료할 때 이 이벤트가 발생한다
         "SessionStart",
         "SessionEnd",
         "UserPromptSubmit",
@@ -816,15 +816,15 @@ final class AgentManager: ObservableObject {
         "PreCompact",
     ]
 
-    /// Shell 安全地引用一个路径（单引号包裹 + 转义内部单引号）
+    /// 경로를 셸에서 안전하게 인용한다 (작은따옴표로 감싸고 내부의 작은따옴표를 이스케이프)
     private func shellQuote(_ s: String) -> String {
         "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
-    /// 空串表示已写入；非空为「跳过 / 失败」说明，需展示给用户。
+    /// 빈 문자열은 기록 완료를 뜻한다. 비어 있지 않으면 '건너뜀 / 실패' 설명이므로 사용자에게 보여 줘야 한다.
     private func installClaudeHooks() -> String {
         guard var settings = loadClaudeSettings() else {
-            return "Claude Hooks：未找到 ~/.claude/settings.json，已跳过。使用 Claude Code 并生成该文件后，可再点「安装 Claude Hooks」。"
+            return "Claude Hooks: ~/.claude/settings.json을 찾지 못해 건너뛰었습니다. Claude Code를 사용해 이 파일이 만들어진 뒤 'Claude Hooks 설치'를 다시 누르세요."
         }
         var hooks = settings["hooks"] as? [String: Any] ?? [:]
 
@@ -834,7 +834,7 @@ final class AgentManager: ObservableObject {
             let ahakeyCmd = "\(binQuoted) hook \(event)"
             var eventHooks = hooks[event] as? [[String: Any]] ?? []
 
-            // 先清掉老的 ahakey 条目，避免 shell 脚本 + 新二进制并存
+            // 먼저 기존 ahakey 항목을 지워, 셸 스크립트와 새 바이너리가 함께 남지 않게 한다
             for i in eventHooks.indices {
                 var entry = eventHooks[i]
                 if var cmds = entry["hooks"] as? [[String: Any]] {
@@ -861,10 +861,10 @@ final class AgentManager: ObservableObject {
 
         settings["hooks"] = hooks
         if saveClaudeSettings(settings) {
-            log.info("Claude hooks 已写入 ahakeyconfig-agent hook 子命令")
+            log.info("Claude 훅에 ahakeyconfig-agent hook 하위 명령을 기록했습니다")
             return ""
         }
-        return "Claude Hooks：无法写入 \(claudeSettingsPath)。请检查该文件或父目录的权限/只读状态。"
+        return "Claude Hooks: \(claudeSettingsPath)에 쓸 수 없습니다. 해당 파일이나 상위 디렉터리의 권한 및 읽기 전용 여부를 확인하세요."
     }
 
     private func removeClaudeHooks() {
@@ -886,9 +886,9 @@ final class AgentManager: ObservableObject {
 
         settings["hooks"] = hooks
         if !saveClaudeSettings(settings) {
-            log.error("removeClaudeHooks: 无法写回 settings")
+            log.error("removeClaudeHooks: settings를 다시 쓸 수 없습니다")
         } else {
-            log.info("Claude hooks 中 ahakey 条目已移除")
+            log.info("Claude 훅에서 ahakey 항목을 제거했습니다")
         }
     }
 
@@ -913,10 +913,10 @@ final class AgentManager: ObservableObject {
 
     // MARK: - Cursor hooks
 
-    /// Cursor 支持的 hook 事件（小驼峰，与 `HookClient` 一致）。
-    /// 批准链集中在 `preToolUse`（在任意工具前调用，可 stdout `permission`）；若你在 `hooks.json` 里自行添加
-    /// `beforeShellExecution` / `beforeMCPExecution` 并指向本 agent，其事件名在 `HookClient` 中同样支持拨杆。
-    /// 安装时写入这些事件；**卸载**时会遍历 `hooks` 的**所有键**（含旧版/合并进的 `beforeReadFile`、`beforeSubmitPrompt` 等），避免只卸一半导致「没反应」。
+    /// Cursor가 지원하는 훅 이벤트 (소문자 카멜케이스, `HookClient`와 동일).
+    /// 승인 체인은 `preToolUse`에 모여 있다 (모든 도구 호출 전에 실행되며 stdout으로 `permission`을 낼 수 있다). `hooks.json`에 직접
+    /// `beforeShellExecution` / `beforeMCPExecution`을 추가해 이 에이전트를 가리키게 하면, 해당 이벤트 이름도 `HookClient`에서 레버를 지원한다.
+    /// 설치할 때는 이 이벤트들을 기록한다. **제거**할 때는 `hooks`의 **모든 키**를 순회한다 (구버전이나 병합된 `beforeReadFile`, `beforeSubmitPrompt` 등 포함). 절반만 제거되어 '반응이 없는' 상태가 되는 것을 막기 위함이다.
     private let cursorHookEvents: [String] = [
         "sessionStart",
         "sessionEnd",
@@ -952,40 +952,40 @@ final class AgentManager: ObservableObject {
         ("Stop", "KimiStop", 10),
     ]
 
-    /// 单独安装 Claude hooks
+    /// Claude 훅만 따로 설치
     func installClaudeHooksOnly() {
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
         let s = installClaudeHooks()
-        agentUserAlert = s.isEmpty ? "Claude Hooks 已写入 ~/.claude/settings.json。" : s
+        agentUserAlert = s.isEmpty ? "Claude Hooks를 ~/.claude/settings.json에 기록했습니다." : s
         refresh()
     }
 
-    /// 单独移除 Claude hooks
+    /// Claude 훅만 따로 제거
     func removeClaudeHooksOnly() {
         removeClaudeHooks()
         refresh()
     }
 
-    /// 单独安装 Cursor hooks（公开给 UI 用，例如只想补装 Cursor 时调用）
+    /// Cursor 훅만 따로 설치 (UI용으로 공개. 예를 들어 Cursor만 추가로 설치할 때 호출)
     func installCursorHooksOnly() {
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
         let s = installCursorHooks()
-        agentUserAlert = s.isEmpty ? "Cursor Hooks 已写入 ~/.cursor/hooks.json。" : s
+        agentUserAlert = s.isEmpty ? "Cursor Hooks를 ~/.cursor/hooks.json에 기록했습니다." : s
         refresh()
     }
 
-    /// 单独安装 Codex hooks（Codex 0.125 为 inline TOML）。
+    /// Codex 훅만 따로 설치 (Codex 0.125는 인라인 TOML).
     func installCodexHooksOnly() {
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
         let s = installCodexHooks()
-        agentUserAlert = s.isEmpty ? "Codex Hooks 已写入 ~/.codex/config.toml。\n\n安装完成。请重启 Codex 终端或客户端后再使用。" : s
+        agentUserAlert = s.isEmpty ? "Codex Hooks를 ~/.codex/config.toml에 기록했습니다.\n\n설치가 완료되었습니다. Codex 터미널이나 클라이언트를 재시작한 뒤 사용하세요." : s
         refresh()
     }
 
-    /// 单独移除 Cursor hooks
+    /// Cursor 훅만 따로 제거
     func removeCursorHooksOnly() {
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
@@ -993,7 +993,7 @@ final class AgentManager: ObservableObject {
         refresh()
     }
 
-    /// 单独移除 Codex hooks。
+    /// Codex 훅만 따로 제거.
     func removeCodexHooksOnly() {
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
@@ -1001,25 +1001,25 @@ final class AgentManager: ObservableObject {
         refresh()
     }
 
-    /// 单独安装 Kimi Code CLI hooks（`~/.kimi/config.toml`，Beta）。
+    /// Kimi Code CLI 훅만 따로 설치 (`~/.kimi/config.toml`, 베타).
     func installKimiHooksOnly() {
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
         let s = installKimiHooks()
         agentUserAlert = s.isEmpty
             ? """
-            Kimi Hooks 已写入 ~/.kimi/config.toml。
+            Kimi Hooks를 ~/.kimi/config.toml에 기록했습니다.
 
-            **AhaKey 拨杆接管也会一并重打到本机 kimi-cli**。如果 kimi 当前已经打开，请**完全关闭并重新打开一次**；重开后，**拨杆 0/1 会直接接管当前会话的自动批准**，**不需要 `/reload`，也不需要 `/yolo`**。
-            以后若你**升级了 kimi-cli**，再次点击一次「安装 Kimi Hooks」即可把这层拨杆接管补回去，然后再重开一次 kimi。
+            **AhaKey 레버 제어도 로컬 kimi-cli에 함께 패치됩니다**. kimi가 지금 열려 있다면 **완전히 종료한 뒤 다시 열어 주세요**. 다시 열면 **레버 0/1이 현재 세션의 자동 승인을 바로 제어하며**, **`/reload`도 `/yolo`도 필요하지 않습니다**.
+            앞으로 **kimi-cli를 업그레이드했다면** 'Kimi Hooks 설치'를 한 번 더 눌러 이 레버 제어 계층을 다시 적용하고, kimi를 한 번 더 열어 주세요.
 
-            安装完成。Hooks 为 Beta，行为以官方文档为准。
+            설치가 완료되었습니다. Hooks는 베타이므로 동작은 공식 문서를 기준으로 하세요.
             """
             : s
         refresh()
     }
 
-    /// 单独移除 Kimi Hooks 标记块。
+    /// Kimi Hooks 표시 블록만 따로 제거.
     func removeKimiHooksOnly() {
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
@@ -1028,12 +1028,12 @@ final class AgentManager: ObservableObject {
     }
 
     private func installCursorHooks() -> String {
-        // Cursor 的目录可能不存在，先建好
+        // Cursor 디렉터리가 없을 수 있으므로 먼저 만든다
         let cursorDir = (cursorHooksPath as NSString).deletingLastPathComponent
         do {
             try FileManager.default.createDirectory(atPath: cursorDir, withIntermediateDirectories: true)
         } catch {
-            return "Cursor Hooks：无法创建目录 \(cursorDir)：\(error.localizedDescription)"
+            return "Cursor Hooks: 디렉터리를 만들 수 없습니다 \(cursorDir): \(error.localizedDescription)"
         }
 
         var settings = loadCursorSettings() ?? [:]
@@ -1043,8 +1043,8 @@ final class AgentManager: ObservableObject {
 
         for event in cursorHookEvents {
             let cmd = "\(binQuoted) hook \(event)"
-            // Cursor：`{ "hooks": { "<event>": [{ "command": "...", "timeout": N }] } }`
-            // 读拨杆/写状态略慢，长超时与 `HookClient` 一致
+            // Cursor: `{ "hooks": { "<event>": [{ "command": "...", "timeout": N }] } }`
+            // 레버 읽기/상태 쓰기가 다소 느리므로, 긴 타임아웃은 `HookClient`와 동일하게 맞춘다
             let t: Int
             if event == "beforeSubmitPrompt" { t = 30 }
             else if ["preToolUse", "beforeShellExecution", "beforeMCPExecution", "beforeReadFile", "sessionStart"].contains(event) { t = 20 }
@@ -1060,10 +1060,10 @@ final class AgentManager: ObservableObject {
             settings["version"] = 1
         }
         if saveCursorSettings(settings) {
-            log.info("Cursor hooks 已写入")
+            log.info("Cursor 훅을 기록했습니다")
             return ""
         }
-        return "Cursor Hooks：无法写入 \(cursorHooksPath)。请检查权限或磁盘空间。"
+        return "Cursor Hooks: \(cursorHooksPath)에 쓸 수 없습니다. 권한이나 디스크 공간을 확인하세요."
     }
 
     private func installCodexHooks() -> String {
@@ -1071,7 +1071,7 @@ final class AgentManager: ObservableObject {
         do {
             try FileManager.default.createDirectory(atPath: codexDir, withIntermediateDirectories: true)
         } catch {
-            return "Codex Hooks：无法创建目录 \(codexDir)：\(error.localizedDescription)"
+            return "Codex Hooks: 디렉터리를 만들 수 없습니다 \(codexDir): \(error.localizedDescription)"
         }
 
         var config = (try? String(contentsOfFile: codexConfigPath, encoding: .utf8)) ?? ""
@@ -1088,17 +1088,17 @@ final class AgentManager: ObservableObject {
                   let written = try? String(contentsOfFile: codexConfigPath, encoding: .utf8),
                   written.contains(codexHookBlockStart),
                   written.contains(codexHookBlockEnd) else {
-                log.error("installCodexHooks: 写入后校验失败 \(self.codexConfigPath)")
-                return "Codex Hooks：已尝试写入 \(codexConfigPath)，但校验时未发现 AhaKey 标记块。请确认对「用户主目录 /.codex」有写权限，或关闭占用该文件的其它程序。"
+                log.error("installCodexHooks: 기록 후 검증 실패 \(self.codexConfigPath)")
+                return "Codex Hooks: \(codexConfigPath)에 쓰기를 시도했지만 검증 과정에서 AhaKey 표시 블록을 찾지 못했습니다. '사용자 홈 디렉터리 /.codex'에 쓰기 권한이 있는지 확인하거나, 이 파일을 점유하고 있는 다른 프로그램을 종료하세요."
             }
-            log.info("Codex hooks 已写入 ~/.codex/config.toml")
+            log.info("Codex 훅을 ~/.codex/config.toml에 기록했습니다")
             let cliRepair = repairCodexCliPathIfNeeded()
             return cliRepair.isEmpty
                 ? ""
-                : "Codex Hooks 已写入 ~/.codex/config.toml。\n\n\(cliRepair)\n\n安装完成。请重启 Codex 终端或客户端后再使用。"
+                : "Codex Hooks를 ~/.codex/config.toml에 기록했습니다.\n\n\(cliRepair)\n\n설치가 완료되었습니다. Codex 터미널이나 클라이언트를 재시작한 뒤 사용하세요."
         } catch {
             log.error("installCodexHooks: \(error.localizedDescription)")
-            return "Codex Hooks：无法写入 \(codexConfigPath)：\(error.localizedDescription)"
+            return "Codex Hooks: \(codexConfigPath)에 쓸 수 없습니다: \(error.localizedDescription)"
         }
     }
 
@@ -1107,7 +1107,7 @@ final class AgentManager: ObservableObject {
             return ""
         }
         guard FileManager.default.isExecutableFile(atPath: codexAppCliPath) else {
-            return "未在 PATH 中找到 `codex` 命令，也未找到 Codex App 自带 CLI：\(codexAppCliPath)。Hook 配置已安装；若需在终端使用 Codex，请先安装或更新 Codex 客户端。"
+            return "PATH에서 `codex` 명령을 찾지 못했고, Codex 앱에 포함된 CLI도 찾지 못했습니다: \(codexAppCliPath). 훅 설정은 설치되었습니다. 터미널에서 Codex를 사용하려면 Codex 클라이언트를 먼저 설치하거나 업데이트하세요."
         }
 
         do {
@@ -1117,7 +1117,7 @@ final class AgentManager: ObservableObject {
             }
             try FileManager.default.createSymbolicLink(atPath: localCodexCliPath, withDestinationPath: codexAppCliPath)
         } catch {
-            return "检测到终端中 `codex` 不可用，但无法创建 \(localCodexCliPath)：\(error.localizedDescription)。Hook 配置已安装。"
+            return "터미널에서 `codex`를 사용할 수 없는 것으로 확인되었지만 \(localCodexCliPath)을(를) 만들 수 없습니다: \(error.localizedDescription). 훅 설정은 설치되었습니다."
         }
 
         let zshLine = #"export PATH="$HOME/.local/bin:$PATH""#
@@ -1135,13 +1135,13 @@ final class AgentManager: ObservableObject {
                 if !zshrc.isEmpty { zshrc += "\n" }
                 zshrc += zshLine + "\n"
                 try zshrc.write(toFile: zshrcPath, atomically: true, encoding: .utf8)
-                return "已检测到 Codex App 自带 CLI，并修复终端命令：\n\(localCodexCliPath) → \(codexAppCliPath)\n\n已将 `~/.local/bin` 加入 ~/.zshrc（若原文件存在，已备份为 ~/.zshrc.ahakey.bak）。"
+                return "Codex 앱에 포함된 CLI를 확인해 터미널 명령을 복구했습니다:\n\(localCodexCliPath) → \(codexAppCliPath)\n\n`~/.local/bin`을 ~/.zshrc에 추가했습니다 (기존 파일이 있었다면 ~/.zshrc.ahakey.bak으로 백업했습니다)."
             }
         } catch {
-            return "已创建 \(localCodexCliPath)，但无法更新 ~/.zshrc：\(error.localizedDescription)。请手动把 `~/.local/bin` 加入 PATH。"
+            return "\(localCodexCliPath)을(를) 만들었지만 ~/.zshrc를 업데이트할 수 없습니다: \(error.localizedDescription). `~/.local/bin`을 PATH에 직접 추가하세요."
         }
 
-        return "已检测到 Codex App 自带 CLI，并创建终端命令：\n\(localCodexCliPath) → \(codexAppCliPath)"
+        return "Codex 앱에 포함된 CLI를 확인해 터미널 명령을 만들었습니다:\n\(localCodexCliPath) → \(codexAppCliPath)"
     }
 
     private func isExecutableOnPath(_ command: String) -> Bool {
@@ -1163,21 +1163,21 @@ final class AgentManager: ObservableObject {
     private func removeCodexHooks() -> String {
         let path = codexConfigPath
         guard FileManager.default.fileExists(atPath: path) else {
-            return "未找到 \(path)，无需移除 Codex Hooks。"
+            return "\(path)을(를) 찾지 못했습니다. Codex Hooks를 제거할 필요가 없습니다."
         }
         guard let config = try? String(contentsOfFile: path, encoding: .utf8) else {
-            return "无法读取 \(path)，请检查权限。"
+            return "\(path)을(를) 읽을 수 없습니다. 권한을 확인하세요."
         }
         let next = removeCodexHookBlock(from: config)
         guard next != config else {
-            return "在 \(path) 中未发现 AhaKey Codex hook 标记块。"
+            return "\(path)에서 AhaKey Codex hook 표시 블록을 찾지 못했습니다."
         }
         do {
             try next.write(toFile: path, atomically: true, encoding: .utf8)
-            log.info("Codex hooks 中 AhaKey 标记块已移除")
-            return "已从 \(path) 移除 AhaKey Codex Hooks。"
+            log.info("Codex 훅에서 AhaKey 표시 블록을 제거했습니다")
+            return "\(path)에서 AhaKey Codex Hooks를 제거했습니다."
         } catch {
-            return "已生成移除后的内容，但无法写回 \(path)：\(error.localizedDescription)"
+            return "제거된 내용을 만들었지만 \(path)에 다시 쓸 수 없습니다: \(error.localizedDescription)"
         }
     }
 
@@ -1241,8 +1241,8 @@ final class AgentManager: ObservableObject {
             }
         }
 
-        // Codex 新版用 `hooks`；旧版写过已废弃的 `codex_hooks`（会触发 deprecation 警告）。
-        // 两者都识别：保留/改写第一个命中为 `hooks = true`，其余（含所有 `codex_hooks`）删除。
+        // Codex 신버전은 `hooks`를 쓴다. 구버전에서는 폐기된 `codex_hooks`를 기록한 적이 있다 (deprecation 경고가 발생한다).
+        // 둘 다 인식한다: 첫 번째로 매칭된 것을 `hooks = true`로 유지·수정하고, 나머지(모든 `codex_hooks` 포함)는 삭제한다.
         let keyPattern = #"^\s*(codex_)?hooks\s*="#
         let regex = try? NSRegularExpression(pattern: keyPattern)
         var matchedIndices: [Int] = []
@@ -1276,7 +1276,7 @@ final class AgentManager: ObservableObject {
         do {
             try FileManager.default.createDirectory(atPath: kimiDir, withIntermediateDirectories: true)
         } catch {
-            return "Kimi Hooks：无法创建目录 \(kimiDir)：\(error.localizedDescription)"
+            return "Kimi Hooks: 디렉터리를 만들 수 없습니다 \(kimiDir): \(error.localizedDescription)"
         }
 
         var config = (try? String(contentsOfFile: kimiConfigPath, encoding: .utf8)) ?? ""
@@ -1289,11 +1289,11 @@ final class AgentManager: ObservableObject {
 
         do {
             try config.write(toFile: kimiConfigPath, atomically: true, encoding: .utf8)
-            log.info("Kimi hooks 已写入 ~/.kimi/config.toml")
+            log.info("Kimi 훅을 ~/.kimi/config.toml에 기록했습니다")
             return patchInstalledKimiCliForAhaKeyDialControl()
         } catch {
             log.error("installKimiHooks: \(error.localizedDescription)")
-            return "Kimi Hooks：无法写入 \(kimiConfigPath)：\(error.localizedDescription)"
+            return "Kimi Hooks: \(kimiConfigPath)에 쓸 수 없습니다: \(error.localizedDescription)"
         }
     }
 
@@ -1311,9 +1311,9 @@ final class AgentManager: ObservableObject {
     private func patchInstalledKimiCliForAhaKeyDialControl() -> String {
         guard let targets = resolveKimiCliPatchTargets() else {
             return """
-            Kimi Hooks 已写入 ~/.kimi/config.toml，但**未找到可重打补丁的本机 kimi-cli 安装**。
+            Kimi Hooks를 ~/.kimi/config.toml에 기록했지만, **패치를 적용할 로컬 kimi-cli 설치를 찾지 못했습니다**.
 
-            请确认终端里存在 `kimi` 命令；确认后再次点击「安装 Kimi Hooks」即可重试拨杆接管补丁。
+            터미널에 `kimi` 명령이 있는지 확인하세요. 확인한 뒤 'Kimi Hooks 설치'를 다시 누르면 레버 제어 패치를 재시도합니다.
             """
         }
 
@@ -1325,10 +1325,10 @@ final class AgentManager: ObservableObject {
         } catch {
             log.error("patchInstalledKimiCliForAhaKeyDialControl: \(error.localizedDescription)")
             return """
-            Kimi Hooks 已写入 ~/.kimi/config.toml，但**本机 kimi-cli 拨杆接管补丁未完成**：
+            Kimi Hooks를 ~/.kimi/config.toml에 기록했지만, **로컬 kimi-cli의 레버 제어 패치가 완료되지 않았습니다**:
             \(error.localizedDescription)
 
-            你可在确认 `kimi` 可执行后，再次点击「安装 Kimi Hooks」重试。
+            `kimi`가 실행 가능한지 확인한 뒤 'Kimi Hooks 설치'를 다시 눌러 재시도할 수 있습니다.
             """
         }
     }
@@ -1529,12 +1529,12 @@ final class AgentManager: ObservableObject {
         let newYoloLead = """
             ahakey_override = get_ahakey_approval_override(force_refresh=True)
             if ahakey_override is not None:
-                mode_label = "自动批准" if bool(ahakey_override["is_auto"]) else "手动批准"
+                mode_label = "자동 승인" if bool(ahakey_override["is_auto"]) else "수동 승인"
                 wire_send(
                     TextPart(
                         text=(
-                            f"AhaKey 拨杆接管中：当前为{mode_label}。"
-                            "请直接拨动键盘上的物理拨杆切换；`/yolo` 不会覆盖拨杆。"
+                            f"AhaKey 레버가 제어 중입니다. 현재 모드는 {mode_label}입니다. "
+                            "키보드의 물리 레버를 직접 움직여 전환하세요. `/yolo`는 레버를 덮어쓰지 않습니다."
                         )
                     )
                 )
@@ -1569,7 +1569,7 @@ final class AgentManager: ObservableObject {
                 throw NSError(
                     domain: "AhaKeyKimiPatch",
                     code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "未在 \(friendlyName) 中找到可替换的上游锚点，可能是 kimi-cli 版本已变。"]
+                    userInfo: [NSLocalizedDescriptionKey: "\(friendlyName)에서 교체할 업스트림 앵커를 찾지 못했습니다. kimi-cli 버전이 변경되었을 수 있습니다."]
                 )
             }
             text = text.replacingOccurrences(of: old, with: new)
@@ -1582,21 +1582,21 @@ final class AgentManager: ObservableObject {
     private func removeKimiHooks() -> String {
         let path = kimiConfigPath
         guard FileManager.default.fileExists(atPath: path) else {
-            return "未找到 \(path)，无需移除 Kimi Hooks。"
+            return "\(path)을(를) 찾지 못했습니다. Kimi Hooks를 제거할 필요가 없습니다."
         }
         guard let config = try? String(contentsOfFile: path, encoding: .utf8) else {
-            return "无法读取 \(path)，请检查权限。"
+            return "\(path)을(를) 읽을 수 없습니다. 권한을 확인하세요."
         }
         let next = removeLegacyKimiHookEntries(from: removeKimiHookBlock(from: config))
         guard next != config else {
-            return "在 \(path) 中未发现 AhaKey Kimi hook 标记块或旧版裸 hook。"
+            return "\(path)에서 AhaKey Kimi hook 표시 블록이나 구버전 단독 훅을 찾지 못했습니다."
         }
         do {
             try next.write(toFile: path, atomically: true, encoding: .utf8)
-            log.info("Kimi hooks 中 AhaKey 标记块与旧版裸 hook 已移除")
-            return "已从 \(path) 移除 AhaKey Kimi Hooks。"
+            log.info("Kimi 훅에서 AhaKey 표시 블록과 구버전 단독 훅을 제거했습니다")
+            return "\(path)에서 AhaKey Kimi Hooks를 제거했습니다."
         } catch {
-            return "已生成移除后的内容，但无法写回 \(path)：\(error.localizedDescription)"
+            return "제거된 내용을 만들었지만 \(path)에 다시 쓸 수 없습니다: \(error.localizedDescription)"
         }
     }
 
@@ -1632,7 +1632,7 @@ final class AgentManager: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
     }
 
-    /// 清理未包在 BEGIN/END 标记块中的旧版 AhaKey Kimi hook，避免同一事件重复触发两次。
+    /// BEGIN/END 표시 블록에 감싸이지 않은 구버전 AhaKey Kimi 훅을 정리해, 같은 이벤트가 두 번 트리거되는 것을 막는다.
     private func removeLegacyKimiHookEntries(from config: String) -> String {
         let lines = config.components(separatedBy: .newlines)
         var kept: [String] = []
@@ -1669,23 +1669,23 @@ final class AgentManager: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
     }
 
-    /// 供「卸载主流程」等内部调用，无 UI 提示。
+    /// '제거 메인 흐름' 등 내부 호출용. UI 알림은 없다.
     private func removeCursorHooks() {
         _ = performRemoveCursorHooksUserMessage(writeAndLog: true, preferCompactMessage: true)
     }
 
-    /// 从 `~/.cursor/hooks.json` 的 **全部** 事件里删掉指向 ahakey 的条目，并写回文件。
-    /// - Returns: 给用户看的说明（弹窗用）；`writeAndLog==false` 时仍返回文案但不写盘（当前未用）。
+    /// `~/.cursor/hooks.json`의 **모든** 이벤트에서 ahakey를 가리키는 항목을 삭제하고 파일에 다시 쓴다.
+    /// - Returns: 사용자에게 보여 줄 설명 (팝업용). `writeAndLog==false`일 때는 문구만 반환하고 디스크에는 쓰지 않는다 (현재 사용하지 않음).
     private func performRemoveCursorHooksUserMessage(writeAndLog: Bool = true, preferCompactMessage: Bool = false) -> String {
         let path = cursorHooksPath
         guard FileManager.default.fileExists(atPath: path) else {
-            return "未找到用户级 \(path)。\n\n若你只在**项目**里合并过 `.cursor/hooks.json`，需在该项目根目录中手动编辑或删除 AhaKey 相关条目，用户级里本来就没有可卸内容。"
+            return "사용자 수준 \(path)을(를) 찾지 못했습니다.\n\n**프로젝트** 안에서만 `.cursor/hooks.json`을 병합했다면, 해당 프로젝트 루트에서 AhaKey 관련 항목을 직접 편집하거나 삭제해야 합니다. 사용자 수준에는 제거할 내용이 애초에 없습니다."
         }
         guard var settings = loadCursorSettings() else {
-            return "无法解析 \(path)（非合法 JSON 或已损坏）。请用编辑器打开修正后再试，或从备份恢复。"
+            return "\(path)을(를) 파싱할 수 없습니다(올바른 JSON이 아니거나 손상됨). 편집기로 열어 수정한 뒤 다시 시도하거나 백업에서 복원하세요."
         }
         guard var hooks = settings["hooks"] as? [String: Any], !hooks.isEmpty else {
-            return "hooks.json 中无「hooks」或为空，没有可移除的 AhaKey 项。"
+            return "hooks.json에 'hooks'가 없거나 비어 있어 제거할 AhaKey 항목이 없습니다."
         }
 
         var removedCount = 0
@@ -1702,7 +1702,7 @@ final class AgentManager: ObservableObject {
         }
 
         if removedCount == 0 {
-            return "在 \(path) 中**未发现**包含 `ahakeyconfig-agent` 或 `ahakey-state` 的 `command`。\n\n若 Hook 在**项目级** `.cursor/hooks.json`，请在该仓库内手动删除；本按钮只改用户级 `~/.cursor/hooks.json`。"
+            return "\(path)에서 `ahakeyconfig-agent` 또는 `ahakey-state`를 포함한 `command`를 **찾지 못했습니다**.\n\n훅이 **프로젝트 수준** `.cursor/hooks.json`에 있다면 해당 저장소에서 직접 삭제하세요. 이 버튼은 사용자 수준 `~/.cursor/hooks.json`만 수정합니다."
         }
 
         if hooks.isEmpty {
@@ -1713,14 +1713,14 @@ final class AgentManager: ObservableObject {
 
         if writeAndLog {
             if !saveCursorSettings(settings) {
-                log.error("removeCursorHooks: 无法写回 hooks.json")
-                return "已删除内存中的 AhaKey 条目，但**无法写回** \(path)。请检查对「用户目录下 .cursor」的写权限，或关闭占用该文件的其他应用后重试。"
+                log.error("removeCursorHooks: hooks.json을 다시 쓸 수 없습니다")
+                return "메모리상의 AhaKey 항목은 삭제했지만 \(path)에 **다시 쓸 수 없습니다**. '사용자 디렉터리의 .cursor'에 대한 쓰기 권한을 확인하거나, 이 파일을 점유하고 있는 다른 앱을 종료한 뒤 다시 시도하세요."
             }
             log.info("Cursor hooks: removed \(removedCount) ahakey command(s)")
         }
 
         if preferCompactMessage { return "" }
-        return "已从用户级 Cursor Hooks 中移除 AhaKey 相关条目（共 \(removedCount) 条子命令）。\n\n文件：\(path)\n\n若某仓库仍有**项目级** `.cursor/hooks.json` 且其中含有本工具，其优先级可能更高，需在该项目内同步删除或合并。"
+        return "사용자 수준 Cursor Hooks에서 AhaKey 관련 항목을 제거했습니다 (하위 명령 \(removedCount)개).\n\n파일: \(path)\n\n어떤 저장소에 **프로젝트 수준** `.cursor/hooks.json`이 남아 있고 그 안에 이 도구가 포함되어 있다면, 우선순위가 더 높을 수 있으므로 해당 프로젝트에서도 함께 삭제하거나 병합해야 합니다."
     }
 
     private func loadCursorSettings() -> [String: Any]? {
@@ -1767,7 +1767,7 @@ final class AgentManager: ObservableObject {
         }
     }
 
-    /// 再次 load 时系统常提示「已加载」类信息，不当作致命错误。
+    /// 다시 load할 때 시스템이 '이미 로드됨' 류의 메시지를 자주 내놓는데, 이를 치명적 오류로 취급하지 않는다.
     private func isBenignLaunchctlLoadMessage(_ message: String) -> Bool {
         let m = message.lowercased()
         if m.isEmpty { return false }

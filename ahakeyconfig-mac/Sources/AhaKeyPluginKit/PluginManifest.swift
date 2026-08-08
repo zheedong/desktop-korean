@@ -1,11 +1,11 @@
 import Foundation
 
-// 一个插件目录的清单文件（`plugin.json`），决定宿主怎么发现、启动、信任这个插件。
+// 플러그인 디렉터리의 매니페스트 파일(`plugin.json`)이며, 호스트가 이 플러그인을 어떻게 발견하고 시작하고 신뢰할지 결정합니다.
 //
-// 目录约定：
+// 디렉터리 규칙:
 //   ~/Library/Application Support/AhaKeyConfig/plugins/<id>/plugin.json
 //
-// 最小示例：
+// 최소 예시:
 // ```json
 // {
 //   "id": "com.example.hello",
@@ -19,12 +19,12 @@ import Foundation
 // }
 // ```
 //
-// 设计取舍：
-// - `entrypoint.command` 不要求绝对路径；宿主统一用 `/usr/bin/env <command>` 拉起，
-//   走系统 PATH。要写死可执行用绝对路径，env 也会原样转发。
-// - `${pluginDir}` 是 args / env 里的字符串占位符，解析时替换成 manifest 所在目录的绝对路径。
-// - `permissions` 是白名单：只有在这个列表里的 `host/*` method 能被该插件调用，
-//   未声明的会直接回 method-not-found（-32601）。
+// 설계 판단:
+// - `entrypoint.command`는 절대 경로가 아니어도 됩니다. 호스트는 항상 `/usr/bin/env <command>` 형태로 실행하므로
+//   시스템 PATH를 따릅니다. 실행 파일을 고정하고 싶다면 절대 경로를 쓰면 되고, env도 그대로 전달합니다.
+// - `${pluginDir}`는 args / env에 쓰는 문자열 자리표시자이며, 해석 시 매니페스트가 있는 디렉터리의 절대 경로로 치환됩니다.
+// - `permissions`는 허용 목록입니다. 이 목록에 있는 `host/*` method만 해당 플러그인이 호출할 수 있고,
+//   선언되지 않은 것은 곧바로 method-not-found(-32601)로 응답합니다.
 
 public struct PluginManifest: Codable, Sendable, Equatable {
     public let id: String
@@ -33,7 +33,7 @@ public struct PluginManifest: Codable, Sendable, Equatable {
     public let entrypoint: Entrypoint
     public let permissions: [String]
 
-    /// manifest 文件所在目录（解析时由 loader 注入；不会被序列化到 JSON）。
+    /// 매니페스트 파일이 있는 디렉터리입니다(해석 시 loader가 주입하며, JSON으로 직렬화되지 않습니다).
     public var directory: URL = URL(fileURLWithPath: "/")
 
     public struct Entrypoint: Codable, Sendable, Equatable {
@@ -79,7 +79,7 @@ public struct PluginManifest: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - 加载
+// MARK: - 로드
 
 public enum PluginManifestError: Error, Sendable {
     case fileNotFound(URL)
@@ -87,7 +87,7 @@ public enum PluginManifestError: Error, Sendable {
 }
 
 public extension PluginManifest {
-    /// 从目录加载 `plugin.json`；解析失败抛 `PluginManifestError`。
+    /// 디렉터리에서 `plugin.json`을 로드합니다. 해석에 실패하면 `PluginManifestError`를 던집니다.
     static func load(from directory: URL) throws -> PluginManifest {
         let url = directory.appendingPathComponent("plugin.json")
         guard FileManager.default.fileExists(atPath: url.path) else {
@@ -108,12 +108,12 @@ public extension PluginManifest {
         }
     }
 
-    /// 把字符串里所有 `${pluginDir}` 替换成 manifest 所在目录的绝对路径。
+    /// 문자열에 있는 모든 `${pluginDir}`를 매니페스트가 있는 디렉터리의 절대 경로로 치환합니다.
     func substitute(_ s: String) -> String {
         s.replacingOccurrences(of: "${pluginDir}", with: directory.path)
     }
 
-    /// 解析好的、可直接交给 `Process` 的子进程描述。
+    /// 해석이 끝나 `Process`에 바로 넘길 수 있는 자식 프로세스 정보입니다.
     var resolvedEntrypoint: ResolvedEntrypoint {
         ResolvedEntrypoint(
             executable: URL(fileURLWithPath: "/usr/bin/env"),

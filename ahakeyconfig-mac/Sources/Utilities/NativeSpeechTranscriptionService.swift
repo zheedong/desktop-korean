@@ -13,28 +13,28 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     @Published private(set) var siriEnabled = false
     @Published private(set) var dictationEnabled = false
     @Published private(set) var isRecording = false
-    @Published private(set) var statusMessage = "等待苹果原生转写就绪。"
+    @Published private(set) var statusMessage = "Apple 기본 전사 기능이 준비되기를 기다리는 중입니다."
     @Published private(set) var transcriptPreview = ""
     @Published private(set) var lastCommittedText = ""
-    @Published private(set) var lastPermissionCheckSummary = "尚未检查麦克风、语音转写与 Siri 权限。"
+    @Published private(set) var lastPermissionCheckSummary = "마이크, 음성 전사, Siri 권한을 아직 확인하지 않았습니다."
 
-    // MARK: 录音触发方式配置
-    /// 短按（切换式）：录音结束后是否调用 AhaType 整理
+    // MARK: 녹음 트리거 방식 설정
+    /// 짧게 누르기(토글 방식): 녹음이 끝난 뒤 AhaType 정리를 호출할지 여부
     @Published var shortPressAhaTypeEnabled: Bool = UserDefaults.standard.object(forKey: "nativeSpeech.shortPressAhaType") as? Bool ?? true {
         didSet { UserDefaults.standard.set(shortPressAhaTypeEnabled, forKey: "nativeSpeech.shortPressAhaType") }
     }
-    /// 长按模式（按住录音，松手发送）始终开启，不再由用户关闭
+    /// 길게 누르기 모드(누르는 동안 녹음, 놓으면 전송)는 항상 켜져 있으며 사용자가 끌 수 없습니다
     @Published var longPressEnabled: Bool = true
-    /// 长按模式结束后是否调用 AhaType（默认关闭：快速直发）
+    /// 길게 누르기 모드가 끝난 뒤 AhaType을 호출할지 여부(기본값 꺼짐: 빠른 즉시 전송)
     @Published var longPressAhaTypeEnabled: Bool = UserDefaults.standard.object(forKey: "nativeSpeech.longPressAhaType") as? Bool ?? false {
         didSet { UserDefaults.standard.set(longPressAhaTypeEnabled, forKey: "nativeSpeech.longPressAhaType") }
     }
-    /// 长按判定阈值（毫秒）
+    /// 길게 누르기 판정 임계값(밀리초)
     @Published var longPressThresholdMs: Int = UserDefaults.standard.object(forKey: "nativeSpeech.longPressThresholdMs") as? Int ?? 500 {
         didSet { UserDefaults.standard.set(longPressThresholdMs, forKey: "nativeSpeech.longPressThresholdMs") }
     }
 
-    /// 当前是否处于长按录音模式（按住中，松手会直接发送）
+    /// 현재 길게 누르기 녹음 모드인지 여부(누르고 있는 중이며, 놓으면 바로 전송됩니다)
     @Published private(set) var isLongPressRecording = false
 
     private var longPressTimerWork: DispatchWorkItem?
@@ -43,7 +43,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     private var recognitionTask: SFSpeechRecognitionTask?
     private var finalizeWorkItem: DispatchWorkItem?
     private var currentTranscript = ""
-    /// 防止 `isFinal`、1s 超时、`error` 回调各触发一次，导致同一段被 ⌘V 多遍
+    /// `isFinal`, 1초 타임아웃, `error` 콜백이 각각 한 번씩 발생해 같은 구간이 ⌘V로 여러 번 입력되는 것을 방지
     private var hasCommittedThisRecording = false
 
 
@@ -56,14 +56,14 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         refreshPermissions(requestIfNeeded: false)
     }
 
-    /// - Parameter deferredTCCRequery: 与 `VoiceRelayService` 一致：用户点「重新检查」时延后一拍再读，避免 TCC 状态未刷新时界面像「没反应」。
+    /// - Parameter deferredTCCRequery: `VoiceRelayService`와 동일하게, 사용자가 「다시 확인」을 누를 때 한 박자 늦게 읽어 TCC 상태가 갱신되지 않아 화면이 「반응 없음」처럼 보이는 것을 방지합니다.
     func refreshPermissions(requestIfNeeded: Bool = false, deferredTCCRequery: Bool = false) {
         if requestIfNeeded {
             performPermissionRead(requestIfNeeded: true)
             return
         }
         if deferredTCCRequery {
-            lastPermissionCheckSummary = "正在检查麦克风与语音转写权限…"
+            lastPermissionCheckSummary = "마이크와 음성 전사 권한을 확인하는 중…"
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: UInt64(450) * 1_000_000)
                 self.performPermissionRead(requestIfNeeded: false)
@@ -96,7 +96,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
         if requestIfNeeded {
             if Self.isMicrophoneUndetermined() {
-                // 先弹麦克风，用户响应后再检查语音识别，避免两个弹框同时排队、顺序混乱
+                // 먼저 마이크 권한을 요청하고, 사용자가 응답한 뒤 음성 인식을 확인해 두 대화상자가 동시에 대기하며 순서가 뒤엉키는 것을 방지
                 Self.requestMicrophoneAccess {
                     Task { @MainActor in
                         self.refreshPermissions()
@@ -125,23 +125,23 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         siriEnabled = currentSiriEnabled
         dictationEnabled = currentDictationEnabled
         lastPermissionCheckSummary =
-            "麦克风 \(currentMicGranted ? "已开启" : "未开启") · 语音转写 \(currentSpeechGranted ? "已开启" : "未开启") · Siri \(currentSiriEnabled ? "已开启" : "未开启") · 听写 \(currentDictationEnabled ? "已开启" : "未开启") · 检查于 \(timeLabel)"
+            "마이크 \(currentMicGranted ? "켜짐" : "꺼짐") · 음성 전사 \(currentSpeechGranted ? "켜짐" : "꺼짐") · Siri \(currentSiriEnabled ? "켜짐" : "꺼짐") · 받아쓰기 \(currentDictationEnabled ? "켜짐" : "꺼짐") · 확인 시각 \(timeLabel)"
 
         if !currentMicGranted || !currentSpeechGranted || !currentSiriEnabled || !currentDictationEnabled {
-            statusMessage = "还缺苹果原生语音权限，请先打开麦克风、语音转写、Siri 与听写。"
+            statusMessage = "Apple 기본 음성 권한이 부족합니다. 먼저 마이크, 음성 전사, Siri, 받아쓰기를 켜 주세요."
         } else if !isRecording {
-            statusMessage = "苹果原生转写已就绪，按一次语音键开始，再按一次结束。"
+            statusMessage = "Apple 기본 전사가 준비되었습니다. 음성 키를 한 번 누르면 시작되고, 다시 누르면 종료됩니다."
         }
 
         appendDiagnostic("permissions mic=\(currentMicGranted) speech=\(currentSpeechGranted) siri=\(currentSiriEnabled) dictation=\(currentDictationEnabled)")
     }
 
-    // MARK: - 语音键事件入口（VoiceRelayService 调用）
+    // MARK: - 음성 키 이벤트 진입점(VoiceRelayService에서 호출)
 
-    /// keyDown 时调用：若长按模式启用，开启长按计时器；否则立即开始录音或等 keyUp 切换。
+    /// keyDown 시 호출: 길게 누르기 모드가 켜져 있으면 길게 누르기 타이머를 시작하고, 그렇지 않으면 즉시 녹음을 시작하거나 keyUp 전환을 기다립니다.
     func handleVoiceKeyDown() {
         if longPressEnabled, !isRecording {
-            // 启动长按计时：阈值内松开 → 短按；超时后仍按着 → 进入长按录音
+            // 길게 누르기 타이머 시작: 임계값 내에 놓으면 → 짧게 누르기, 임계값을 넘겨도 누르고 있으면 → 길게 누르기 녹음 진입
             let work = DispatchWorkItem { [weak self] in
                 guard let self else { return }
                 self.longPressTimerWork = nil
@@ -157,16 +157,16 @@ final class NativeSpeechTranscriptionService: ObservableObject {
                 execute: work
             )
         } else if !longPressEnabled {
-            // 无长按：keyDown 直接切换（兼容旧行为）
+            // 길게 누르기 없음: keyDown에서 바로 전환(기존 동작 호환)
             toggleRecordingFromVoiceKey()
         }
-        // 若 longPressEnabled 且已在录音中，keyDown 不做任何事，等 keyUp 判断
+        // longPressEnabled이면서 이미 녹음 중이면 keyDown에서는 아무것도 하지 않고 keyUp에서 판단
     }
 
-    /// keyUp 时调用：若长按模式活跃 → 结束并直接发送；否则短按切换。
+    /// keyUp 시 호출: 길게 누르기 모드가 활성이면 → 종료하고 바로 전송, 그렇지 않으면 짧게 누르기로 전환합니다.
     func handleVoiceKeyUp() {
         if isLongPressRecording {
-            // 长按录音结束：停止并按长按配置决定是否用 AhaType
+            // 길게 누르기 녹음 종료: 정지한 뒤 길게 누르기 설정에 따라 AhaType 사용 여부를 결정
             isLongPressRecording = false
             longPressTimerWork?.cancel()
             longPressTimerWork = nil
@@ -176,7 +176,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
 
         if let work = longPressTimerWork {
-            // 计时器还没触发 → 短按，取消计时并切换录音
+            // 타이머가 아직 발동하지 않음 → 짧게 누르기이므로 타이머를 취소하고 녹음을 전환
             work.cancel()
             longPressTimerWork = nil
             appendDiagnostic("short press (keyUp before threshold) → toggle")
@@ -186,12 +186,12 @@ final class NativeSpeechTranscriptionService: ObservableObject {
                 startRecording()
             }
         } else if longPressEnabled, isRecording {
-            // 长按模式开启时，短按第一次已进入切换式录音；第二次短按没有 timer，
-            // 仍应按短按配置结束录音，保持“按一次开始，再按一次结束”的体验。
+            // 길게 누르기 모드가 켜진 상태에서 첫 번째 짧게 누르기로 이미 토글 방식 녹음에 진입했고, 두 번째 짧게 누르기에는 timer가 없습니다.
+            // 이때도 짧게 누르기 설정에 따라 녹음을 종료해 “한 번 누르면 시작, 다시 누르면 종료”라는 경험을 유지해야 합니다.
             appendDiagnostic("short press while recording → stop")
             stopRecording(bypassAhaType: !shortPressAhaTypeEnabled)
         } else if !longPressEnabled {
-            // 无长按模式：keyDown 已处理，keyUp 不重复
+            // 길게 누르기 모드 없음: keyDown에서 이미 처리했으므로 keyUp에서는 반복하지 않음
         }
     }
 
@@ -212,9 +212,9 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             Self.requestMicrophoneAccess {
                 Task { @MainActor in
                     self.refreshPermissions()
-                    // macOS 26 上 requestRecordPermission 可能静默返回、不弹窗；
-                    // 若 completion 回来权限仍是 undetermined，说明系统没有显示弹框，
-                    // 直接引导用户去系统设置手动开启。
+                    // macOS 26에서는 requestRecordPermission이 대화상자를 띄우지 않고 조용히 반환할 수 있습니다.
+                    // completion이 돌아온 뒤에도 권한이 여전히 undetermined라면 시스템이 대화상자를 표시하지 않은 것이므로,
+                    // 사용자를 시스템 설정으로 안내해 직접 켜도록 합니다.
                     if Self.isMicrophoneUndetermined() {
                         self.openMicrophoneSystemSettings()
                     }
@@ -236,11 +236,11 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
     private func attemptResetAndRequestMicrophonePermission() {
         let alert = NSAlert()
-        alert.messageText = "麦克风权限已被拒绝"
-        alert.informativeText = "需要重置麦克风权限才能重新授权。"
-        alert.addButton(withTitle: "重置并授权")
-        alert.addButton(withTitle: "打开系统设置")
-        alert.addButton(withTitle: "取消")
+        alert.messageText = "마이크 권한이 거부되었습니다"
+        alert.informativeText = "다시 승인하려면 마이크 권한을 재설정해야 합니다."
+        alert.addButton(withTitle: "재설정 후 승인")
+        alert.addButton(withTitle: "시스템 설정 열기")
+        alert.addButton(withTitle: "취소")
 
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
@@ -248,18 +248,18 @@ final class NativeSpeechTranscriptionService: ObservableObject {
                 PermissionSignatureChecker.resetMicrophonePermission { success, message in
                     DispatchQueue.main.async {
                         if success {
-                            // 重置成功后直接重新请求，TCC 记录已清空无需重启
+                            // 재설정에 성공하면 바로 다시 요청합니다. TCC 기록이 비워졌으므로 재시작이 필요하지 않습니다
                             Self.requestMicrophoneAccess {
                                 Task { @MainActor in
                                     self.refreshPermissions()
-                                    // 若弹框未出现（macOS 26 静默返回），直接打开系统设置
+                                    // 대화상자가 나타나지 않으면(macOS 26에서 조용히 반환) 곧바로 시스템 설정을 엽니다
                                     if !Self.isMicrophoneGranted() {
                                         self.openMicrophoneSystemSettings()
                                     }
                                 }
                             }
                         } else {
-                            // tccutil 失败（SIP 开启时普通进程无权限），引导到系统设置
+                            // tccutil 실패(SIP가 켜져 있으면 일반 프로세스에는 권한이 없음) 시 시스템 설정으로 안내
                             print("[NativeSpeech] tccutil reset failed: \(message)")
                             self.openMicrophoneSystemSettings()
                         }
@@ -295,11 +295,11 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         appendDiagnostic("attemptResetAndRequestSpeechRecognition bundleId=\(bundleId)")
 
         let alert = NSAlert()
-        alert.messageText = "语音识别权限已被拒绝"
-        alert.informativeText = "需要重置语音识别权限才能继续。点击「重置」后需重启应用才能重新授权。"
-        alert.addButton(withTitle: "重置并重启")
-        alert.addButton(withTitle: "打开系统设置")
-        alert.addButton(withTitle: "取消")
+        alert.messageText = "음성 인식 권한이 거부되었습니다"
+        alert.informativeText = "계속하려면 음성 인식 권한을 재설정해야 합니다. 「재설정」을 누른 뒤 앱을 재시작해야 다시 승인할 수 있습니다."
+        alert.addButton(withTitle: "재설정 후 재시작")
+        alert.addButton(withTitle: "시스템 설정 열기")
+        alert.addButton(withTitle: "취소")
 
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
@@ -332,7 +332,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     func stopRecording(bypassAhaType: Bool) {
         guard isRecording else { return }
         isRecording = false
-        statusMessage = "正在结束录音并整理文字…"
+        statusMessage = "녹음을 종료하고 텍스트를 정리하는 중…"
         VoiceStatusHUDController.shared.show(.recognizing)
         pendingFinalizeBypassAhaType = bypassAhaType
         appendDiagnostic("stop recording requested bypassAhaType=\(bypassAhaType)")
@@ -371,7 +371,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
 
         guard let recognizer = makeSpeechRecognizer() else {
-            statusMessage = "当前系统语言暂不支持苹果原生转写。"
+            statusMessage = "현재 시스템 언어는 아직 Apple 기본 전사를 지원하지 않습니다."
             appendDiagnostic("speech recognizer unavailable")
             return
         }
@@ -402,7 +402,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             try engine.start()
         } catch {
             inputNode.removeTap(onBus: 0)
-            statusMessage = "无法启动麦克风录音。"
+            statusMessage = "마이크 녹음을 시작할 수 없습니다."
             appendDiagnostic("audio engine start failed: \(error.localizedDescription)")
             return
         }
@@ -410,7 +410,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         audioEngine = engine
         recognitionRequest = request
         isRecording = true
-        statusMessage = "苹果原生转写录音中… 再按一次语音键结束。"
+        statusMessage = "Apple 기본 전사로 녹음 중… 음성 키를 다시 누르면 종료됩니다."
         VoiceStatusHUDController.shared.show(.recording)
         appendDiagnostic("start recording locale=\(recognizer.locale.identifier)")
 
@@ -422,9 +422,9 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
     }
 
-    /// 流式 + 同一段录音里停顿后续说：多数帧里 `formattedString` 是「从本段开录至今的整段」；  
-    /// 若用英文空格去拼两段中文，或把「同一句的改判」与「下一段整句」都旧+新硬接，就会叠出很多遍。  
-    /// 结束提交：另见 `hasCommittedThisRecording`。
+    /// 스트리밍 + 같은 녹음 구간에서 잠시 멈춘 뒤 이어 말하는 경우: 대부분의 프레임에서 `formattedString`은 「이 구간 녹음 시작부터 지금까지의 전체」입니다.  
+    /// 두 개의 한국어 구간을 영어식 공백으로 잇거나, 「같은 문장의 재판정」과 「다음 구간의 전체 문장」을 모두 기존+신규로 억지로 붙이면 같은 내용이 여러 번 겹칩니다.  
+    /// 종료 시 커밋: `hasCommittedThisRecording`도 함께 참고하세요.
     private func applyStreamingTranscriptionPartial(_ newRaw: String) {
         let newT = newRaw.trimmingCharacters(in: .whitespacesAndNewlines)
         if newT.isEmpty { return }
@@ -467,7 +467,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
                 return
             }
         }
-        // 不盲拼长串；以本次整段假设为准
+        // 긴 문자열을 무작정 이어 붙이지 않고, 이번 전체 구간 가설을 기준으로 삼습니다
         currentTranscript = newT
     }
 
@@ -507,8 +507,9 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     private func handleRecognition(result: SFSpeechRecognitionResult?, error: Error?) {
         if let result {
             let newText = result.bestTranscription.formattedString
-            // 流式结果：同一句会以前缀方式变长，直接取 new 即可；中间停顿后系统可能只返回
-            // 新一段文字（不含前句），再整串赋值会顶掉前句——须按前缀关系合并，否则拼接。
+            // 스트리밍 결과: 같은 문장은 접두사 형태로 길어지므로 new를 그대로 쓰면 됩니다. 다만 중간에 멈추면
+            // 시스템이 새 구간의 텍스트만(앞 문장 없이) 반환할 수 있어, 전체를 그대로 대입하면 앞 문장이 사라집니다 —
+            // 접두사 관계에 따라 병합하고, 그렇지 않으면 이어 붙여야 합니다.
             if !newText.isEmpty {
                 applyStreamingTranscriptionPartial(newText)
                 transcriptPreview = currentTranscript
@@ -526,9 +527,9 @@ final class NativeSpeechTranscriptionService: ObservableObject {
                 finalizeCurrentTranscriptIfNeeded(reason: "error_with_text", bypassAhaType: pendingFinalizeBypassAhaType)
             } else {
                 cancelRecognitionPipeline()
-                statusMessage = "苹果原生转写失败：\(error.localizedDescription)"
+                statusMessage = "Apple 기본 전사 실패: \(error.localizedDescription)"
                 VoiceStatusHUDController.shared.show(
-                    VoiceStatusHUDState(kind: .warning, title: "识别失败", subtitle: "请重试或检查语音权限"),
+                    VoiceStatusHUDState(kind: .warning, title: "인식 실패", subtitle: "다시 시도하거나 음성 권한을 확인하세요"),
                     autoHideAfter: 2.0
                 )
             }
@@ -548,7 +549,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         cancelRecognitionPipeline()
 
         guard !text.isEmpty else {
-            statusMessage = "未识别到有效语音内容。"
+            statusMessage = "유효한 음성 내용을 인식하지 못했습니다."
             VoiceStatusHUDController.shared.show(.empty, autoHideAfter: 1.8)
             appendDiagnostic("finalize empty reason=\(reason)")
             return
@@ -556,7 +557,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
         hasCommittedThisRecording = true
         let willUseAhaType = !bypassAhaType && AhaTypeTextOptimizer.shared.isEnabled
-        statusMessage = willUseAhaType ? "AhaType 整理中…" : "准备粘贴…"
+        statusMessage = willUseAhaType ? "AhaType 정리 중…" : "붙여넣기 준비 중…"
         VoiceStatusHUDController.shared.show(willUseAhaType ? .ahaType : .pasting)
         appendDiagnostic("finalize begin reason=\(reason) bypass=\(bypassAhaType) rawText=\(text)")
 
@@ -569,11 +570,11 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             }
             if self.injectText(output) {
                 self.lastCommittedText = output
-                self.statusMessage = output == text ? "已写入：\(output)" : "AhaType 已整理并写入：\(output)"
+                self.statusMessage = output == text ? "입력 완료: \(output)" : "AhaType이 정리하여 입력했습니다: \(output)"
                 VoiceStatusHUDController.shared.show(.done, autoHideAfter: 1.4)
                 self.appendDiagnostic("finalize success reason=\(reason) rawText=\(text) outputText=\(output)")
             } else {
-                self.statusMessage = "识别完成，但写入当前光标失败。"
+                self.statusMessage = "인식은 완료했지만 현재 커서 위치에 입력하지 못했습니다."
                 VoiceStatusHUDController.shared.show(.failed, autoHideAfter: 2.0)
                 self.appendDiagnostic("finalize inject failed reason=\(reason) text=\(output)")
             }
@@ -616,21 +617,21 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     ) -> String {
         var missing: [String] = []
         if micStatus != .authorized {
-            missing.append("麦克风")
+            missing.append("마이크")
         }
         if speechStatus != .authorized {
-            missing.append("语音转写")
+            missing.append("음성 전사")
         }
         if !siriEnabled {
             missing.append("Siri")
         }
         if !dictationEnabled {
-            missing.append("听写")
+            missing.append("받아쓰기")
         }
-        return "还缺\(missing.joined(separator: "、"))权限。请先在系统设置里打开后，再按一次语音键。"
+        return "\(missing.joined(separator: ", ")) 권한이 없습니다. 먼저 시스템 설정에서 켠 뒤 음성 키를 다시 눌러 주세요."
     }
 
-    // MARK: - 麦克风权限辅助（macOS 14+ 用 AVAudioApplication，旧系统回退 AVCaptureDevice）
+    // MARK: - 마이크 권한 보조(macOS 14+에서는 AVAudioApplication 사용, 이전 시스템은 AVCaptureDevice로 폴백)
 
     private static func isMicrophoneGranted() -> Bool {
         if #available(macOS 14.0, *) {
@@ -686,15 +687,15 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             return false
         }
 
-        // 走剪贴板 + ⌘V 的方式：
-        // Electron / Chromium 应用（Cursor、VS Code、Slack 等）会吞掉
-        // CGEvent.keyboardSetUnicodeString 合成的 Unicode 键盘事件，所以
-        // 用标准的粘贴路径更通用稳定。粘贴完成后恢复原剪贴板内容。
+        // 클립보드 + ⌘V 방식을 사용합니다.
+        // Electron / Chromium 앱(Cursor, VS Code, Slack 등)은
+        // CGEvent.keyboardSetUnicodeString으로 합성한 Unicode 키보드 이벤트를 삼켜 버리므로,
+        // 표준 붙여넣기 경로가 더 범용적이고 안정적입니다. 붙여넣기가 끝나면 원래 클립보드 내용을 복원합니다.
         if injectViaPaste(text: text) {
             return true
         }
 
-        // 理论上不会落到这里——保留 Unicode-synthesis 作为 last-resort fallback。
+        // 이론적으로는 여기까지 오지 않습니다 —— Unicode-synthesis를 last-resort fallback으로 남겨 둡니다.
         appendDiagnostic("inject fallback to unicode-synthesis")
         for scalar in text.utf16 {
             var unit = scalar
@@ -718,12 +719,12 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         return true
     }
 
-    /// 用 NSPasteboard + 合成 ⌘V 的方式把 `text` 注入到当前焦点位置。
-    /// 返回 true 表示已投递粘贴事件；之后会异步恢复原剪贴板内容。
+    /// NSPasteboard + 합성 ⌘V 방식으로 `text`를 현재 포커스 위치에 주입합니다.
+    /// true를 반환하면 붙여넣기 이벤트를 전달했다는 뜻이며, 이후 비동기로 원래 클립보드 내용을 복원합니다.
     private func injectViaPaste(text: String) -> Bool {
         let pasteboard = NSPasteboard.general
 
-        // 备份当前剪贴板（保留所有类型的数据，兼容图片/富文本）
+        // 현재 클립보드 백업(모든 유형의 데이터를 보존해 이미지/서식 있는 텍스트도 호환)
         var backup: [(NSPasteboard.PasteboardType, Data)] = []
         if let types = pasteboard.types {
             for type in types {
@@ -741,7 +742,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             return false
         }
 
-        // 合成 ⌘V —— virtualKey 0x09 = V（kVK_ANSI_V）
+        // ⌘V 합성 —— virtualKey 0x09 = V(kVK_ANSI_V)
         let source = CGEventSource(stateID: .combinedSessionState)
         guard let down = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true),
               let up = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false) else {
@@ -758,7 +759,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
         appendDiagnostic("paste inject posted ⌘V for text.count=\(text.count)")
 
-        // 给目标 app 足够时间消费粘贴事件再恢复剪贴板
+        // 대상 앱이 붙여넣기 이벤트를 소비할 시간을 충분히 준 뒤 클립보드를 복원
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
             self?.restorePasteboard(backup: backup)
         }

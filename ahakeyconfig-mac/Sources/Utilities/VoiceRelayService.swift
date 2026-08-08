@@ -29,11 +29,11 @@ private enum VoiceRouteAction: Hashable {
     var title: String {
         switch self {
         case .macOSDictation:
-            "macOS 原生语音"
+            "macOS 기본 음성"
         case let .functionRelay(appName):
             appName
         case .doubaoPassThrough:
-            "豆包输入法"
+            "더우바오 입력기"
         }
     }
 
@@ -56,20 +56,20 @@ final class VoiceRelayService: ObservableObject {
     @Published private(set) var isListening = false
     @Published private(set) var inputMonitoringGranted = false
     @Published private(set) var accessibilityGranted = false
-    @Published private(set) var statusMessage = "等待语音路由初始化。"
-    @Published private(set) var activeRouteSummary = "未配置语音软件。"
+    @Published private(set) var statusMessage = "음성 라우팅 초기화를 기다리는 중입니다."
+    @Published private(set) var activeRouteSummary = "음성 소프트웨어가 설정되지 않았습니다."
     @Published var showsPermissionOnboarding = false
-    @Published private(set) var lastPermissionCheckSummary = "尚未检查权限。"
+    @Published private(set) var lastPermissionCheckSummary = "권한을 아직 확인하지 않았습니다."
     @Published private(set) var lastInspectorSimulateHint: String?
 
     private let routeQueue = DispatchQueue(label: "lab.jawa.ahakeyconfig.voiceRelay.routes")
     private var routes: [VoiceRoute] = []
-    /// 与键盘物理档位一致，用于多个 Mode 共用同一触发键（如 F18 / F19）时选对路由。
+    /// 키보드의 물리 단계와 일치하며, 여러 Mode가 같은 트리거 키(예: F18 / F19)를 공유할 때 올바른 라우트를 고르는 데 사용합니다.
     private var keyboardWorkMode: AhaKeyModeSlot = .mode0
 
-    /// 我们用 CGEventTap（不是 NSEvent.addGlobalMonitor），因为只有 CGEventTap 能真正
-    /// "吞掉"键盘事件，防止硬件语音键漏到前台 App（比如 Claude Code CLI / iTerm 等终端
-    /// 会把 F17/F18 翻译成 xterm CSI 转义序列，用户看起来就是"乱码")。
+    /// NSEvent.addGlobalMonitor가 아니라 CGEventTap을 사용합니다. CGEventTap만이 키보드 이벤트를 실제로
+    /// "삼켜서" 하드웨어 음성 키가 전면 App으로 새어 나가는 것을 막을 수 있기 때문입니다(예: Claude Code CLI / iTerm 같은 터미널은
+    /// F17/F18을 xterm CSI 이스케이프 시퀀스로 번역해, 사용자에게는 "깨진 문자"로 보입니다).
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
 
@@ -77,19 +77,19 @@ final class VoiceRelayService: ObservableObject {
 
     private var shadowSuppressUntil: TimeInterval = 0
 
-    /// 当 route.action 是 .functionRelay 时用来模拟「按住 Fn/Globe」；触发键可为 F18/F19 等，与物理键 keyDown/keyUp 跟手。
+    /// route.action이 .functionRelay일 때 「Fn/Globe 누르고 있기」를 시뮬레이션하는 데 사용합니다. 트리거 키는 F18/F19 등이 될 수 있고, 물리 키의 keyDown/keyUp을 그대로 따라갑니다.
     private var holdingRoute: VoiceRoute?
-    /// 硬件语音键常为极短脉冲（down/up 间隔几毫秒）；若立刻跟手 Fn up，Typeless/微信往往来不及进入「按住说话」。满足最短「物理按下时长」后再 Fn up（长按则仍立即跟手）。
+    /// 하드웨어 음성 키는 보통 아주 짧은 펄스입니다(down/up 간격이 몇 밀리초). 곧바로 Fn up을 따라 보내면 Typeless/위챗이 「누르고 말하기」에 진입할 시간이 부족한 경우가 많습니다. 최소 「물리 누름 시간」을 충족한 뒤에 Fn up을 보냅니다(길게 누른 경우에는 여전히 즉시 따라갑니다).
     private var functionRelayKeyDownUptime: TimeInterval?
     private var pendingFnReleaseWorkItem: DispatchWorkItem?
-    /// 当前是否已向系统发出尚未配对的 Fn keyDown（用于短脉冲 cancel 延后 release 后避免重复 keyDown）。
+    /// 아직 짝이 맞지 않은 Fn keyDown을 시스템에 이미 보냈는지 여부(짧은 펄스에서 지연된 release를 취소한 뒤 keyDown이 중복되는 것을 방지).
     private var syntheticFnRelayHeld: Bool = false
 
     private let syntheticEventUserData: Int64 = 0x4148414B
     private let fnKeyCode: CGKeyCode = 63
     private let emojiShadowKeyCode: CGKeyCode = 179
     private let shadowSuppressSeconds: TimeInterval = 0.06
-    /// 物理按下若短于此值，则 Fn keyUp 延后到整段不少于该时长（IME 启动「按住说话」往往需要更长的合成 Fn）。
+    /// 물리 누름이 이 값보다 짧으면, Fn keyUp을 전체 구간이 이 시간 이상이 되도록 지연시킵니다(IME가 「누르고 말하기」를 시작하려면 합성 Fn이 더 길어야 하는 경우가 많습니다).
     private let minFunctionRelayPhysicalHoldSeconds: TimeInterval = 0.45
 
     private init() {
@@ -113,7 +113,7 @@ final class VoiceRelayService: ObservableObject {
         refreshPermissions(requestIfNeeded: false)
     }
 
-    /// - Parameter deferredTCCRequery: 用户点「重新检查」时置 true。仅 Preflight 在刚改完系统设置、仍停留本 App 时可能仍读到旧值；改为稍后使用 Request API 再读一次，并略延长等待。
+    /// - Parameter deferredTCCRequery: 사용자가 「다시 확인」을 누를 때 true로 설정합니다. Preflight만 쓰면 시스템 설정을 막 변경하고 이 App에 머물러 있을 때 여전히 이전 값을 읽을 수 있으므로, 잠시 뒤 Request API로 한 번 더 읽고 대기 시간을 조금 늘립니다.
     func refreshPermissions(requestIfNeeded: Bool = false, deferredTCCRequery: Bool = false) {
         if requestIfNeeded {
             if Thread.isMainThread {
@@ -127,7 +127,7 @@ final class VoiceRelayService: ObservableObject {
         }
         if deferredTCCRequery {
             DispatchQueue.main.async {
-                self.lastPermissionCheckSummary = "正在检查系统权限…"
+                self.lastPermissionCheckSummary = "시스템 권한을 확인하는 중…"
             }
             let firstDelay: TimeInterval = 0.45
             let followUpDelay: TimeInterval = 0.85
@@ -151,7 +151,7 @@ final class VoiceRelayService: ObservableObject {
         let inputMonitoring: Bool
         let postEventAccess: Bool
         if requestIfNeeded || preferRequestAPI {
-            // Request 会走当前 TCC 判决；用户刚从「隐私与安全性」返回时，Preflight 有时仍短暂为 false。
+            // Request는 현재 TCC 판정을 따릅니다. 사용자가 「개인정보 보호 및 보안」에서 막 돌아온 직후에는 Preflight가 잠시 false로 남아 있을 수 있습니다.
             inputMonitoring = CGRequestListenEventAccess()
             postEventAccess = CGRequestPostEventAccess()
         } else {
@@ -169,7 +169,7 @@ final class VoiceRelayService: ObservableObject {
 
         let timeLabel = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
         let lastCheckSummary =
-            "输入监控 \(inputMonitoring ? "已开启" : "未开启") · 辅助功能 \((accessibility && postEventAccess) ? "已开启" : "未开启") · 检查于 \(timeLabel)"
+            "입력 모니터링 \(inputMonitoring ? "켜짐" : "꺼짐") · 손쉬운 사용 \((accessibility && postEventAccess) ? "켜짐" : "꺼짐") · 확인 시각 \(timeLabel)"
 
         DispatchQueue.main.async {
             self.inputMonitoringGranted = inputMonitoring
@@ -222,7 +222,7 @@ final class VoiceRelayService: ObservableObject {
         return false
     }
 
-    /// Inspector 调试：模拟当前模式下按一次实体语音键（Fn/Globe = 切换 Fn 按住；macOS 原生 = 切换系统转写）。
+    /// Inspector 디버깅: 현재 모드에서 실물 음성 키를 한 번 누른 것을 시뮬레이션합니다(Fn/Globe = Fn 누름 상태 전환, macOS 기본 = 시스템 전사 전환).
     func simulateInspectorVoiceKeyTap(for mode: AhaKeyModeSlot) {
         let route: VoiceRoute? = routeQueue.sync {
             routes.first { $0.mode == mode }
@@ -230,7 +230,7 @@ final class VoiceRelayService: ObservableObject {
         guard let route else {
             appendDiagnostic("inspector simulate: no route for mode=\(mode.rawValue)")
             Task { @MainActor in
-                lastInspectorSimulateHint = "当前模式没有语音路由：Fn 请选 Fn/Globe，或把「自定义快捷键」设为 F19。"
+                lastInspectorSimulateHint = "현재 모드에 음성 라우트가 없습니다. Fn은 Fn/Globe를 선택하거나 「사용자 지정 단축키」를 F19로 설정하세요."
             }
             return
         }
@@ -238,18 +238,18 @@ final class VoiceRelayService: ObservableObject {
         case .macOSDictation:
             Task { @MainActor in
                 NativeSpeechTranscriptionService.shared.toggleRecordingFromVoiceKey()
-                lastInspectorSimulateHint = "已切换「苹果原生转写」录制状态（与界面「开始录音」相同）。"
+                lastInspectorSimulateHint = "「Apple 기본 전사」의 녹음 상태를 전환했습니다(화면의 「녹음 시작」과 동일)."
             }
         case .functionRelay:
             toggleFunctionRelayHold(for: route)
             Task { @MainActor in
-                lastInspectorSimulateHint = "已切换 Fn 按住状态；请在 Typeless/微信语音/豆包输入法内把快捷键设为 Fn/Globe（本 Studio 监听 F19，旧版 F18 兼容）。再点一次为松开。"
+                lastInspectorSimulateHint = "Fn 누름 상태를 전환했습니다. Typeless/위챗 음성/더우바오 입력기에서 단축키를 Fn/Globe로 설정하세요(이 Studio는 F19를 감지하며, 구버전 F18도 호환됩니다). 다시 누르면 놓입니다."
             }
         case .doubaoPassThrough:
             configureDoubaoVoiceShortcutIfNeeded()
             ensureInputSource(id: Self.doubaoInputSourceID, label: route.action.title)
             Task { @MainActor in
-                lastInspectorSimulateHint = "豆包需要真实 F18 长按事件；已切到豆包输入源并配置长按 F18，请用实体语音键测试。"
+                lastInspectorSimulateHint = "더우바오는 실제 F18 길게 누르기 이벤트가 필요합니다. 더우바오 입력 소스로 전환하고 F18 길게 누르기를 설정했으니 실물 음성 키로 테스트하세요."
             }
         }
         appendDiagnostic("inspector simulate mode=\(mode.rawValue) action=\(route.action.title)")
@@ -259,8 +259,8 @@ final class VoiceRelayService: ObservableObject {
         let builtRoutes = Self.buildRoutes(from: draft)
         let needsDoubaoPreparation = builtRoutes.contains { $0.action == .doubaoPassThrough }
 
-        // 只有路由集合真的变化时才释放"按住"状态，避免 SwiftUI 频繁重建/无关 onChange
-        // 间接把 functionRelay 的 hold 状态冲掉（典型表现：微信按住说话过几秒自动结束）。
+        // 라우트 집합이 실제로 변경될 때만 "누름" 상태를 해제해, SwiftUI의 빈번한 재생성이나 무관한 onChange가
+        // functionRelay의 hold 상태를 간접적으로 지워 버리는 것을 방지합니다(대표 증상: 위챗에서 누르고 말하기가 몇 초 뒤 자동 종료).
         let routesChanged: Bool = routeQueue.sync { self.routes != builtRoutes }
         if routesChanged {
             releaseFunctionRelayHoldIfNeeded()
@@ -269,7 +269,7 @@ final class VoiceRelayService: ObservableObject {
         routeQueue.async {
             self.routes = builtRoutes
             let summary = builtRoutes.isEmpty
-                ? "未配置语音软件。"
+                ? "음성 소프트웨어가 설정되지 않았습니다."
                 : builtRoutes.map { route in
                     let fallback = route.compatibilityLabel.map { " · \($0)" } ?? ""
                     return "\(route.mode.title) \(route.action.title) ← \(route.binding.displayLabel)\(fallback)"
@@ -285,7 +285,7 @@ final class VoiceRelayService: ObservableObject {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.configureDoubaoVoiceShortcutIfNeeded()
-                self.ensureInputSource(id: Self.doubaoInputSourceID, label: "豆包输入法")
+                self.ensureInputSource(id: Self.doubaoInputSourceID, label: "더우바오 입력기")
             }
         }
     }
@@ -305,7 +305,7 @@ final class VoiceRelayService: ObservableObject {
             return
         }
 
-        // 关注 keyDown / keyUp。flagsChanged 不需要，因为 voice key 都映射为非 modifier 键。
+        // keyDown / keyUp만 관찰합니다. voice key는 모두 modifier가 아닌 키로 매핑되므로 flagsChanged는 필요하지 않습니다.
         let mask: CGEventMask =
             (1 << CGEventType.keyDown.rawValue) |
             (1 << CGEventType.keyUp.rawValue)
@@ -325,7 +325,7 @@ final class VoiceRelayService: ObservableObject {
             callback: callback,
             userInfo: refcon
         ) else {
-            appendDiagnostic("event tap create failed (缺辅助功能或输入监控权限?)")
+            appendDiagnostic("event tap create failed (손쉬운 사용 또는 입력 모니터링 권한 없음?)")
             isListening = false
             refreshStatusMessage()
             return
@@ -358,10 +358,10 @@ final class VoiceRelayService: ObservableObject {
         refreshStatusMessage()
     }
 
-    /// CGEventTap 回调。返回 `nil` 表示吞掉事件（不让它抵达前台 App）；返回 passUnretained
-    /// 表示放行。务必只在成功 match 到 route 时才吞，避免误杀普通按键。
+    /// CGEventTap 콜백. `nil`을 반환하면 이벤트를 삼킨다는 뜻(전면 App에 도달하지 못하게 함)이고, passUnretained를
+    /// 반환하면 통과시킨다는 뜻입니다. 일반 키를 잘못 잡아먹지 않도록, route에 성공적으로 match된 경우에만 삼켜야 합니다.
     private func handleTappedEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        // 1. 系统可能因为我们耗时过长临时禁用了 tap，这里补救重启一下。
+        // 1. 처리가 너무 오래 걸려 시스템이 tap을 일시적으로 비활성화했을 수 있으므로, 여기서 다시 활성화합니다.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap = eventTap {
                 CGEvent.tapEnable(tap: tap, enable: true)
@@ -370,12 +370,12 @@ final class VoiceRelayService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
-        // 2. 自己合成出来的事件（functionRelay 注入的 Fn）必须放行，不然会死循环。
+        // 2. 직접 합성한 이벤트(functionRelay가 주입한 Fn)는 반드시 통과시켜야 합니다. 그러지 않으면 무한 루프에 빠집니다.
         if event.getIntegerValueField(.eventSourceUserData) == syntheticEventUserData {
             return Unmanaged.passUnretained(event)
         }
 
-        // 3. 只关心 keyDown / keyUp；别的类型直接放行。
+        // 3. keyDown / keyUp만 처리하고, 다른 유형은 그대로 통과시킵니다.
         guard type == .keyDown || type == .keyUp else {
             return Unmanaged.passUnretained(event)
         }
@@ -383,8 +383,8 @@ final class VoiceRelayService: ObservableObject {
         let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
         let flags = normalizedModifierSet(from: event.flags)
 
-        // 4. Emoji 面板影子键 179 抑制：Fn 注入之后 macOS 会连带发一个影子 keyDown，
-        //    把它吞掉避免 Emoji 面板闪一下。
+        // 4. 이모지 패널 그림자 키 179 억제: Fn을 주입하면 macOS가 그림자 keyDown을 함께 보내므로,
+        //    이를 삼켜 이모지 패널이 깜빡이는 것을 방지합니다.
         let now = Date().timeIntervalSinceReferenceDate
         if keyCode == emojiShadowKeyCode,
            now <= routeQueue.sync(execute: { shadowSuppressUntil })
@@ -393,7 +393,7 @@ final class VoiceRelayService: ObservableObject {
             return nil
         }
 
-        // 5. 匹配语音路由。没匹配就一律放行。
+        // 5. 음성 라우트를 매칭합니다. 일치하지 않으면 모두 통과시킵니다.
         guard let route = matchingRoute(forKeyCode: keyCode, flags: flags) else {
             return Unmanaged.passUnretained(event)
         }
@@ -413,8 +413,8 @@ final class VoiceRelayService: ObservableObject {
                     NativeSpeechTranscriptionService.shared.handleVoiceKeyUp()
                 }
             }
-            // keyDown/keyUp 都吞掉，避免硬件发出的 F17/F18 漏到前台 App（比如 Claude CLI
-            // 所在的终端会把它翻译成 \e[...~ 字样）。
+            // keyDown/keyUp을 모두 삼켜 하드웨어가 보낸 F17/F18이 전면 App으로 새어 나가지 않게 합니다(예: Claude CLI가
+            // 실행 중인 터미널은 이를 \e[...~ 같은 문자로 번역합니다).
             return nil
 
         case .doubaoPassThrough:
@@ -428,7 +428,7 @@ final class VoiceRelayService: ObservableObject {
             return Unmanaged.passUnretained(event)
 
         case .functionRelay:
-            // 与微信 / Typeless「按住说话」一致：跟手硬件 keyDown；keyUp 若过短则略延长 Fn 按住，避免脉冲键无反应。
+            // 위챗 / Typeless의 「누르고 말하기」와 동일하게: 하드웨어 keyDown을 그대로 따라가고, keyUp이 너무 이르면 Fn 누름을 조금 연장해 펄스 키가 무반응이 되는 것을 방지합니다.
             if isAutoRepeat {
                 return nil
             }
@@ -470,7 +470,7 @@ final class VoiceRelayService: ObservableObject {
                     let work = DispatchWorkItem { [weak self] in
                         guard let self else { return }
                         self.postFunctionKey(isKeyDown: false)
-                        // 已在 routeQueue 上执行，禁止再 routeQueue.sync，否则同队列嵌套会死锁并在调试下 EXC_BREAKPOINT。
+                        // 이미 routeQueue에서 실행 중이므로 routeQueue.sync를 다시 호출하면 안 됩니다. 같은 큐에 중첩되면 데드락이 발생하고 디버깅 시 EXC_BREAKPOINT가 납니다.
                         self.syntheticFnRelayHeld = false
                         self.pendingFnReleaseWorkItem = nil
                         self.appendDiagnostic("function relay delayed Fn release (\(title))")
@@ -515,7 +515,7 @@ final class VoiceRelayService: ObservableObject {
         }
     }
 
-    /// 在服务停止监听、路由变化或权限失效时，保证不会把 Fn「按住」悬挂在系统键盘里。
+    /// 서비스가 감지를 멈추거나 라우트가 바뀌거나 권한이 무효화될 때, Fn 「누름」이 시스템 키보드에 걸린 채 남지 않도록 보장합니다.
     private func releaseFunctionRelayHoldIfNeeded() {
         let needsFnUp: Bool = routeQueue.sync {
             cancelPendingFnReleaseLocked()
@@ -553,7 +553,7 @@ final class VoiceRelayService: ObservableObject {
         }
     }
 
-    /// Typeless 等 IME 有时只从 session 或 HID 一侧吃全 Fn；分两路投递（各用独立 CGEvent），提高「长按 Fn」被识别的概率。
+    /// Typeless 같은 IME는 때때로 session 또는 HID 한쪽에서만 Fn을 온전히 받습니다. 두 경로로 각각 별도의 CGEvent를 보내 「Fn 길게 누르기」가 인식될 확률을 높입니다.
     private func postFnRelayKeyboardEvents(keyCode: CGKeyCode, keyDown: Bool, flags: CGEventFlags) {
         if let event = CGEvent(
             keyboardEventSource: CGEventSource(stateID: .combinedSessionState),
@@ -658,21 +658,21 @@ final class VoiceRelayService: ObservableObject {
 
     private func refreshStatusMessage() {
         if !inputMonitoringGranted || !accessibilityGranted {
-            statusMessage = "还缺系统权限：请为 AhaKey Studio 打开“输入监控”和“辅助功能”，授权后回到软件点“重新检查权限”。"
+            statusMessage = "시스템 권한이 부족합니다. AhaKey Studio에 “입력 모니터링”과 “손쉬운 사용”을 허용한 뒤, 앱으로 돌아와 “권한 다시 확인”을 눌러 주세요."
             return
         }
 
         guard isListening else {
-            statusMessage = "语音键后台监听准备中。关闭窗口后，AhaKey Studio 也会继续驻留后台。"
+            statusMessage = "음성 키 백그라운드 감지를 준비하는 중입니다. 창을 닫아도 AhaKey Studio는 백그라운드에 계속 상주합니다."
             return
         }
 
-        if activeRouteSummary == "未配置语音软件。" {
-            statusMessage = "后台监听已启动，但当前没有可接管的语音软件。"
+        if activeRouteSummary == "음성 소프트웨어가 설정되지 않았습니다." {
+            statusMessage = "백그라운드 감지가 시작되었지만 현재 연동할 수 있는 음성 소프트웨어가 없습니다."
             return
         }
 
-        statusMessage = "后台监听已启动。Fn/Globe 语音走 F19；macOS 原生与旧版 F18 会继续兼容。"
+        statusMessage = "백그라운드 감지가 시작되었습니다. Fn/Globe 음성은 F19를 사용하며, macOS 기본과 구버전 F18도 계속 호환됩니다."
     }
 
     private static func buildRoutes(from draft: AhaKeyStudioDraft) -> [VoiceRoute] {
@@ -703,7 +703,7 @@ final class VoiceRelayService: ObservableObject {
                         binding: fnF19,
                         action: action,
                         mode: mode,
-                        compatibilityLabel: "Fn F19 兼容"
+                        compatibilityLabel: "Fn F19 호환"
                     )
                 )
             }
@@ -714,7 +714,7 @@ final class VoiceRelayService: ObservableObject {
                         binding: factoryF18,
                         action: action,
                         mode: .mode0,
-                        compatibilityLabel: "旧版 F18 兼容"
+                        compatibilityLabel: "구버전 F18 호환"
                     )
                 )
             }
@@ -732,8 +732,8 @@ final class VoiceRelayService: ObservableObject {
         case .wechat:
             .functionRelay(appName: "Fn/Globe")
         case .claudeCode:
-            // Claude Code preset 复用 macOS 原生 ASR：录音 → 识别 → ⌘V 粘到当前光标。
-            // 这样按键会被我们的 monitor 吃掉，不会漏到 Claude CLI 终端里变成 CSI 乱码。
+            // Claude Code preset은 macOS 기본 ASR을 재사용합니다: 녹음 → 인식 → ⌘V로 현재 커서에 붙여넣기.
+            // 이렇게 하면 키 입력이 우리 monitor에서 소비되어 Claude CLI 터미널로 새어 나가 CSI 깨진 문자가 되지 않습니다.
             .macOSDictation
         case .kimiCode:
             .macOSDictation

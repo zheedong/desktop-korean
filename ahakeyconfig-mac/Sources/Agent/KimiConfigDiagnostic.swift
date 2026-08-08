@@ -1,12 +1,12 @@
 import Foundation
 
-/// 读取 `~/.kimi/config.toml` 快照。`default_yolo` 也可由 **拨杆→`KimiConfigLeverSync`** 在 `PreToolUse` 写入；已开会话需在 kimi 执行 **`/reload`** 才读新值。PreToolUse 仍仅 **`deny`** 有 hook 侧拦截语义（`runner.py`）。
+/// `~/.kimi/config.toml` 스냅샷을 읽는다. `default_yolo` 는 **레버→`KimiConfigLeverSync`** 경로로 `PreToolUse` 에서 기록될 수도 있다. 이미 열려 있는 세션은 kimi 에서 **`/reload`** 를 실행해야 새 값을 읽는다. PreToolUse 에서는 여전히 **`deny`** 만 훅 쪽 차단 의미를 가진다(`runner.py`).
 enum KimiConfigDiagnostic {
     private static var configURL: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".kimi/config.toml", isDirectory: false)
     }
 
-    /// 写入 `permission-request.log` 的 `kimiLeverDebug` 块。
+    /// `permission-request.log` 에 기록되는 `kimiLeverDebug` 블록.
     static func snapshotForLog() -> [String: Any] {
         let fm = FileManager.default
         let path = configURL.path

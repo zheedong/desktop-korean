@@ -18,13 +18,13 @@ struct AhaKeyConfigApp: App {
 
         if #available(macOS 13.0, *) {
             MenuBarExtra("AhaKey", systemImage: "keyboard") {
-                Button("打开主窗口") {
+                Button("메인 창 열기") {
                     appDelegate.reopenMainWindow()
                 }
 
                 Divider()
 
-                Button("退出 AhaKey Studio") {
+                Button("AhaKey Studio 종료") {
                     NSApp.terminate(nil)
                 }
             }
@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // 单实例：检查是否已有实例在运行
+        // 단일 인스턴스: 이미 실행 중인 인스턴스가 있는지 확인
         let bundleID = Bundle.main.bundleIdentifier ?? "lab.jawa.ahakeyconfig"
         let currentBundlePath = Bundle.main.bundlePath
         let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
@@ -59,14 +59,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
         }
 
-        // 检查签名是否变化，如果变化则自动重置麦克风权限
+        // 서명이 변경되었는지 확인하고, 변경되었다면 마이크 권한을 자동으로 초기화
         PermissionSignatureChecker.checkAndResetOnSignatureChange { success in
             DispatchQueue.main.async {
                 if success {
                     let alert = NSAlert()
-                    alert.messageText = "检测到应用签名变化"
-                    alert.informativeText = "麦克风权限已自动重置，下次点击「申请」按钮时会弹出系统授权对话框。"
-                    alert.addButton(withTitle: "确定")
+                    alert.messageText = "앱 서명 변경이 감지되었습니다"
+                    alert.informativeText = "마이크 권한이 자동으로 초기화되었습니다. 다음에 「요청」 버튼을 누르면 시스템 권한 요청 대화상자가 표시됩니다."
+                    alert.addButton(withTitle: "확인")
                     alert.runModal()
                 }
             }

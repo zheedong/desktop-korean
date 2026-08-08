@@ -12,7 +12,7 @@ final class CloudAccountManager: ObservableObject {
     @Published private(set) var isBusy = false
     @Published private(set) var profile: [String: Any]?
     @Published private(set) var paymentOrder: CloudPaymentOrder?
-    @Published private(set) var statusMessage = "尚未登录。"
+    @Published private(set) var statusMessage = "아직 로그인하지 않았습니다."
     @Published var alertMessage: String?
 
     private let fallbackAPIBase = "https://956798.xyz/prod-api"
@@ -30,16 +30,16 @@ final class CloudAccountManager: ObservableObject {
         }
         isLoggedIn = !accessToken.isEmpty
         if isLoggedIn {
-            statusMessage = "已登录，等待刷新用户信息。"
+            statusMessage = "로그인되었습니다. 사용자 정보 갱신을 기다리는 중입니다."
         }
     }
 
     func login() {
-        authenticate(path: "api/v1/auth/login", successMessage: "登录成功。", fallbackError: "登录失败。")
+        authenticate(path: "api/v1/auth/login", successMessage: "로그인 성공.", fallbackError: "로그인 실패.")
     }
 
     func register() {
-        authenticate(path: "api/v1/auth/register", successMessage: "注册成功。", fallbackError: "注册失败。")
+        authenticate(path: "api/v1/auth/register", successMessage: "회원가입 성공.", fallbackError: "회원가입 실패.")
     }
 
     func logout() {
@@ -47,14 +47,14 @@ final class CloudAccountManager: ObservableObject {
         AhaTypeTextOptimizer.shared.clearSessionKeepToggle()
         profile = nil
         isLoggedIn = false
-        statusMessage = "已退出登录。"
+        statusMessage = "로그아웃되었습니다."
     }
 
     func prepareForRelogin() {
         UserDefaults.standard.removeObject(forKey: tokenKey)
         profile = nil
         isLoggedIn = false
-        statusMessage = "请输入账号密码重新登录。"
+        statusMessage = "계정과 비밀번호를 입력해 다시 로그인하세요."
     }
 
     func refreshProfile(showAlertOnFailure: Bool = true) {
@@ -63,23 +63,23 @@ final class CloudAccountManager: ObservableObject {
             return
         }
         isBusy = true
-        statusMessage = "正在刷新用户信息…"
+        statusMessage = "사용자 정보를 갱신하는 중…"
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
                 let object = try await request(path: "api/v1/auth/users/me", method: "GET", body: nil, authorized: true)
-                let data = try payloadData(from: object, fallbackError: "获取用户信息失败")
+                let data = try payloadData(from: object, fallbackError: "사용자 정보 가져오기 실패")
                 await MainActor.run {
                     self.applyProfile(data)
-                    self.statusMessage = "用户信息已刷新。"
+                    self.statusMessage = "사용자 정보를 갱신했습니다."
                 }
             } catch {
                 await MainActor.run {
                     if showAlertOnFailure {
                         self.alertMessage = error.localizedDescription
-                        self.statusMessage = "刷新失败。"
+                        self.statusMessage = "갱신 실패."
                     } else {
-                        self.statusMessage = "已登录，用户信息稍后可刷新。"
+                        self.statusMessage = "로그인되었습니다. 사용자 정보는 나중에 갱신할 수 있습니다."
                     }
                     if showAlertOnFailure, (error as? CloudAccountError)?.statusCode == 401 {
                         self.logout()
@@ -92,26 +92,26 @@ final class CloudAccountManager: ObservableObject {
     func redeemCoupon() {
         let code = couponCode.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !code.isEmpty else {
-            alertMessage = "请输入兑换码。"
+            alertMessage = "교환 코드를 입력하세요."
             return
         }
         isBusy = true
-        statusMessage = "正在兑换免费券…"
+        statusMessage = "무료 쿠폰을 교환하는 중…"
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
                 let object = try await request(path: "api/v1/coupon/redeem", method: "POST", body: ["code": code], authorized: true)
-                let data = try payloadData(from: object, fallbackError: "兑换失败")
+                let data = try payloadData(from: object, fallbackError: "교환 실패")
                 await MainActor.run {
                     self.couponCode = ""
                     self.applyProfile(data)
-                    self.statusMessage = "兑换成功。"
-                    self.alertMessage = "免费券已生效。"
+                    self.statusMessage = "교환 성공."
+                    self.alertMessage = "무료 쿠폰이 적용되었습니다."
                 }
             } catch {
                 await MainActor.run {
                     self.alertMessage = error.localizedDescription
-                    self.statusMessage = "兑换失败。"
+                    self.statusMessage = "교환 실패."
                 }
             }
         }
@@ -119,11 +119,11 @@ final class CloudAccountManager: ObservableObject {
 
     func createWechatOrder(plan: CloudRechargePlan) {
         guard isLoggedIn else {
-            alertMessage = "请先登录后再充值。"
+            alertMessage = "먼저 로그인한 뒤 충전해 주세요."
             return
         }
         isBusy = true
-        statusMessage = "正在创建微信支付订单…"
+        statusMessage = "위챗페이 결제 주문을 생성하는 중…"
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
@@ -133,12 +133,12 @@ final class CloudAccountManager: ObservableObject {
                     body: ["plan": plan.rawValue, "description": plan.orderDescription],
                     authorized: true
                 )
-                let data = try payloadData(from: object, fallbackError: "创建支付订单失败")
+                let data = try payloadData(from: object, fallbackError: "결제 주문 생성 실패")
                 let codeURL = firstString(in: data, keys: ["code_url", "codeUrl"])
                 let h5URL = firstString(in: data, keys: ["h5_url", "h5Url", "mweb_url", "mwebUrl"])
                 let outTradeNo = firstString(in: data, keys: ["out_trade_no", "outTradeNo"])
-                guard !outTradeNo.isEmpty else { throw CloudAccountError("云端未返回订单号，无法查询支付状态。") }
-                guard !codeURL.isEmpty || !h5URL.isEmpty else { throw CloudAccountError("云端未返回可支付链接。") }
+                guard !outTradeNo.isEmpty else { throw CloudAccountError("클라우드에서 주문 번호를 반환하지 않아 결제 상태를 조회할 수 없습니다.") }
+                guard !codeURL.isEmpty || !h5URL.isEmpty else { throw CloudAccountError("클라우드에서 결제 가능한 링크를 반환하지 않았습니다.") }
                 let amountFen = firstInt(in: data, keys: ["amount_fen", "amountFen"])
                 await MainActor.run {
                     self.paymentOrder = CloudPaymentOrder(
@@ -149,13 +149,13 @@ final class CloudAccountManager: ObservableObject {
                         h5URL: h5URL,
                         status: "pending"
                     )
-                    self.statusMessage = "订单已创建，请使用微信扫码支付。"
+                    self.statusMessage = "주문이 생성되었습니다. 위챗에서 QR 코드를 스캔해 결제하세요."
                     self.pollPaymentStatus(outTradeNo: outTradeNo)
                 }
             } catch {
                 await MainActor.run {
                     self.alertMessage = error.localizedDescription
-                    self.statusMessage = "创建支付订单失败。"
+                    self.statusMessage = "결제 주문 생성 실패."
                 }
             }
         }
@@ -163,7 +163,7 @@ final class CloudAccountManager: ObservableObject {
 
     func clearPaymentOrder() {
         paymentOrder = nil
-        statusMessage = "已关闭支付订单。"
+        statusMessage = "결제 주문을 닫았습니다."
     }
 
     func refreshCurrentPaymentOrder() {
@@ -172,7 +172,7 @@ final class CloudAccountManager: ObservableObject {
             return
         }
         isBusy = true
-        statusMessage = "正在查询订单状态…"
+        statusMessage = "주문 상태를 조회하는 중…"
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
@@ -183,28 +183,28 @@ final class CloudAccountManager: ObservableObject {
             } catch {
                 await MainActor.run {
                     self.alertMessage = error.localizedDescription
-                    self.statusMessage = "订单状态查询失败。"
+                    self.statusMessage = "주문 상태 조회 실패."
                 }
             }
         }
     }
 
     var profileSummary: String {
-        guard let profile else { return isLoggedIn ? "已登录，点击刷新获取用户信息。" : "登录后可启用 AhaType 云端整理。" }
+        guard let profile else { return isLoggedIn ? "로그인되었습니다. 새로고침을 눌러 사용자 정보를 가져오세요." : "로그인하면 AhaType 클라우드 정리를 사용할 수 있습니다." }
         let phone = stringValue(profile["phone"])
         let validUntil = stringValue(profile["token_valid_until"])
         return [
-            phone.isEmpty ? "" : "手机号：\(phone)",
-            validUntil.isEmpty ? "有效期：无" : "有效期：\(validUntil)",
+            phone.isEmpty ? "" : "휴대폰 번호: \(phone)",
+            validUntil.isEmpty ? "유효 기간: 없음" : "유효 기간: \(validUntil)",
         ].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     func quotaText(_ period: String) -> String {
-        guard let profile else { return "暂无" }
+        guard let profile else { return "없음" }
         let used = intValue(profile["used_\(period)"])
         let limit = intValue(profile["limit_\(period)"])
         if limit <= 0 {
-            return used > 0 ? "已用 \(used) · 无上限" : "暂无"
+            return used > 0 ? "\(used) 사용 · 무제한" : "없음"
         }
         return "\(used) / \(limit)"
     }
@@ -233,13 +233,13 @@ final class CloudAccountManager: ObservableObject {
                         return
                     }
                 } catch {
-                    // 轮询中允许单次失败，避免网络抖动中断支付流程。
+                    // 폴링 중 한 번의 실패는 허용해 네트워크 불안정으로 결제 흐름이 끊기지 않도록 합니다.
                     continue
                 }
             }
             await MainActor.run {
                 if self.paymentOrder?.outTradeNo == outTradeNo {
-                    self.statusMessage = "等待支付超时，可稍后刷新用户信息确认到账。"
+                    self.statusMessage = "결제 대기 시간이 초과되었습니다. 나중에 사용자 정보를 갱신해 입금을 확인할 수 있습니다."
                 }
             }
         }
@@ -249,7 +249,7 @@ final class CloudAccountManager: ObservableObject {
         let encoded = outTradeNo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? outTradeNo
         let path = "api/v1/payment/wechat/order-status?outTradeNo=\(encoded)"
         let object = try await request(path: path, method: "GET", body: nil, authorized: true)
-        let data = try payloadData(from: object, fallbackError: "查询订单状态失败")
+        let data = try payloadData(from: object, fallbackError: "주문 상태 조회 실패")
         return normalizedPaymentStatus(from: data)
     }
 
@@ -261,19 +261,19 @@ final class CloudAccountManager: ObservableObject {
             paymentOrder = order
         }
         if isPaidPaymentStatus(normalized) {
-            statusMessage = "充值成功，正在刷新额度。"
+            statusMessage = "충전 성공. 사용 한도를 갱신하는 중입니다."
             paymentOrder = nil
             refreshProfile()
             return true
         }
         if isFailedPaymentStatus(normalized) {
-            statusMessage = "订单支付失败。"
-            alertMessage = "订单已标记为失败，请重新发起充值。"
+            statusMessage = "주문 결제 실패."
+            alertMessage = "주문이 실패로 표시되었습니다. 충전을 다시 시작해 주세요."
             return true
         }
-        statusMessage = "订单尚未到账，请稍后再刷新。"
+        statusMessage = "주문 입금이 아직 확인되지 않았습니다. 잠시 후 다시 새로고침하세요."
         if notifyPending {
-            alertMessage = "当前订单仍未到账，请确认微信支付已完成后再刷新。"
+            alertMessage = "현재 주문의 입금이 아직 확인되지 않았습니다. 위챗페이 결제가 완료되었는지 확인한 뒤 새로고침하세요."
         }
         return false
     }
@@ -281,18 +281,18 @@ final class CloudAccountManager: ObservableObject {
     private func authenticate(path: String, successMessage: String, fallbackError: String) {
         let p = phone.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !p.isEmpty, !password.isEmpty else {
-            alertMessage = "请输入手机号和密码。"
+            alertMessage = "휴대폰 번호와 비밀번호를 입력하세요."
             return
         }
         isBusy = true
-        statusMessage = "正在请求云端账号…"
+        statusMessage = "클라우드 계정에 요청하는 중…"
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
                 let object = try await request(path: path, method: "POST", body: ["phone": p, "password": password], authorized: false)
                 let data = try payloadData(from: object, fallbackError: fallbackError)
                 let token = firstString(in: data, keys: ["access_token", "token"])
-                guard !token.isEmpty else { throw CloudAccountError("云端未返回 access_token。") }
+                guard !token.isEmpty else { throw CloudAccountError("클라우드에서 access_token을 반환하지 않았습니다.") }
                 await MainActor.run {
                     self.saveLogin(token: token, authData: data)
                     self.statusMessage = successMessage
@@ -303,7 +303,7 @@ final class CloudAccountManager: ObservableObject {
             } catch {
                 await MainActor.run {
                     self.alertMessage = error.localizedDescription
-                    self.statusMessage = "账号请求失败。"
+                    self.statusMessage = "계정 요청 실패."
                 }
             }
         }
@@ -397,7 +397,7 @@ final class CloudAccountManager: ObservableObject {
 
     private func request(path: String, method: String, body: [String: Any]?, authorized: Bool) async throws -> [String: Any] {
         guard let url = URL(string: "\(apiBase)/\(path)") else {
-            throw CloudAccountError("云端地址无效。")
+            throw CloudAccountError("클라우드 주소가 유효하지 않습니다.")
         }
         var request = URLRequest(url: url, timeoutInterval: 90)
         request.httpMethod = method
@@ -417,10 +417,10 @@ final class CloudAccountManager: ObservableObject {
         }
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw CloudAccountError("服务器返回非 JSON。", statusCode: statusCode)
+            throw CloudAccountError("서버가 JSON이 아닌 응답을 반환했습니다.", statusCode: statusCode)
         }
         if statusCode != 200 {
-            throw CloudAccountError(responseMessage(object).isEmpty ? "请求失败（HTTP \(statusCode)）。" : responseMessage(object), statusCode: statusCode)
+            throw CloudAccountError(responseMessage(object).isEmpty ? "요청 실패(HTTP \(statusCode))." : responseMessage(object), statusCode: statusCode)
         }
         return object
     }
@@ -557,20 +557,20 @@ final class CloudAccountManager: ObservableObject {
     }
 
     private func formatFen(_ fen: Int) -> String {
-        String(format: "%.2f 元", Double(max(0, fen)) / 100.0)
+        String(format: "%.2f 위안", Double(max(0, fen)) / 100.0)
     }
 
     private func networkMessage(for error: Error) -> String {
         guard let urlError = error as? URLError else {
-            return "云端连接失败：\(error.localizedDescription)"
+            return "클라우드 연결 실패: \(error.localizedDescription)"
         }
         switch urlError.code {
         case .secureConnectionFailed, .serverCertificateHasBadDate, .serverCertificateUntrusted, .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid, .clientCertificateRejected, .clientCertificateRequired:
-            return "云端连接失败：TLS/SSL 校验未通过，请检查系统时间、网络代理/证书，或确认云端 HTTPS 证书配置正常。"
+            return "클라우드 연결 실패: TLS/SSL 검증을 통과하지 못했습니다. 시스템 시간과 네트워크 프록시/인증서를 확인하거나, 클라우드 HTTPS 인증서 설정이 정상인지 확인하세요."
         case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed, .notConnectedToInternet, .networkConnectionLost, .timedOut:
-            return "云端连接失败：当前网络无法访问 AhaType 服务，请检查网络后重试。"
+            return "클라우드 연결 실패: 현재 네트워크에서 AhaType 서비스에 접속할 수 없습니다. 네트워크를 확인한 뒤 다시 시도하세요."
         default:
-            return "云端连接失败：\(urlError.localizedDescription)"
+            return "클라우드 연결 실패: \(urlError.localizedDescription)"
         }
     }
 }
@@ -596,25 +596,25 @@ enum CloudRechargePlan: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .monthly: return "按月订阅"
-        case .quarterly: return "按季订阅"
-        case .yearly: return "按年订阅"
+        case .monthly: return "월간 구독"
+        case .quarterly: return "분기 구독"
+        case .yearly: return "연간 구독"
         }
     }
 
     var subtitle: String {
         switch self {
-        case .monthly: return "30 天"
-        case .quarterly: return "90 天"
-        case .yearly: return "365 天"
+        case .monthly: return "30일"
+        case .quarterly: return "90일"
+        case .yearly: return "365일"
         }
     }
 
     var orderDescription: String {
         switch self {
-        case .monthly: return "包月充值"
-        case .quarterly: return "包季充值"
-        case .yearly: return "包年充值"
+        case .monthly: return "월간 충전"
+        case .quarterly: return "분기 충전"
+        case .yearly: return "연간 충전"
         }
     }
 
@@ -640,6 +640,6 @@ struct CloudPaymentOrder: Equatable {
     }
 
     var amountText: String {
-        String(format: "%.2f 元", Double(max(0, amountFen)) / 100.0)
+        String(format: "%.2f 위안", Double(max(0, amountFen)) / 100.0)
     }
 }
